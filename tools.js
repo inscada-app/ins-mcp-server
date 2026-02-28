@@ -220,6 +220,130 @@ const TOOLS = [
     },
   },
 
+  // ==================== inSCADA REST API Tools ====================
+  {
+    name: "inscada_get_live_value",
+    description: "inSCADA REST API üzerinden bir değişkenin canlı (anlık) değerini okur.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "number", description: "Proje ID" },
+        variable_name: { type: "string", description: "Değişken adı (Örn: AN01_Active_Power)" },
+      },
+      required: ["project_id", "variable_name"],
+    },
+  },
+  {
+    name: "inscada_get_live_values",
+    description: "inSCADA REST API üzerinden birden fazla değişkenin canlı değerlerini toplu okur.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "number", description: "Proje ID" },
+        variable_names: {
+          oneOf: [
+            { type: "string", description: "Virgülle ayrılmış değişken adları" },
+            { type: "array", items: { type: "string" }, description: "Değişken adları dizisi" },
+          ],
+          description: "Değişken adları (Örn: AN01_Active_Power,AN01_Wind_Speed)",
+        },
+      },
+      required: ["project_id", "variable_names"],
+    },
+  },
+  {
+    name: "inscada_set_value",
+    description: "inSCADA REST API üzerinden bir değişkene değer yazar. DİKKAT: Bu gerçek SCADA ekipmanına komut gönderir.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "number", description: "Proje ID" },
+        variable_name: { type: "string", description: "Değişken adı" },
+        value: { type: "number", description: "Yazılacak değer" },
+      },
+      required: ["project_id", "variable_name", "value"],
+    },
+  },
+  {
+    name: "inscada_get_fired_alarms",
+    description: "Aktif (fired) alarmları listeler. Opsiyonel olarak projeye göre filtrelenebilir.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "number", description: "Proje ID (opsiyonel, verilmezse tüm alarmlar)" },
+      },
+    },
+  },
+  {
+    name: "inscada_connection_status",
+    description: "Belirtilen connection'ların bağlantı durumlarını kontrol eder.",
+    input_schema: {
+      type: "object",
+      properties: {
+        connection_ids: {
+          oneOf: [
+            { type: "string", description: "Virgülle ayrılmış connection ID'leri" },
+            { type: "array", items: { type: "number" }, description: "Connection ID dizisi" },
+          ],
+          description: "Connection ID'leri",
+        },
+      },
+      required: ["connection_ids"],
+    },
+  },
+  {
+    name: "inscada_project_status",
+    description: "Bir projenin çalışma durumunu kontrol eder.",
+    input_schema: {
+      type: "object",
+      properties: {
+        project_id: { type: "number", description: "Proje ID" },
+      },
+      required: ["project_id"],
+    },
+  },
+  {
+    name: "inscada_run_script",
+    description: "Bir scripti inSCADA üzerinde çalıştırır. Script veritabanında kayıtlı olmalıdır.",
+    input_schema: {
+      type: "object",
+      properties: {
+        script_id: { type: "number", description: "Script ID" },
+      },
+      required: ["script_id"],
+    },
+  },
+  {
+    name: "inscada_script_status",
+    description: "Bir scriptin çalışma durumunu kontrol eder.",
+    input_schema: {
+      type: "object",
+      properties: {
+        script_id: { type: "number", description: "Script ID" },
+      },
+      required: ["script_id"],
+    },
+  },
+  {
+    name: "inscada_logged_values",
+    description: "REST API üzerinden değişkenlerin log (tarihsel) verilerini çeker. InfluxDB alternatifi.",
+    input_schema: {
+      type: "object",
+      properties: {
+        variable_ids: {
+          oneOf: [
+            { type: "string", description: "Virgülle ayrılmış variable ID'leri" },
+            { type: "array", items: { type: "number" }, description: "Variable ID dizisi" },
+          ],
+          description: "Variable ID'leri",
+        },
+        start_date: { type: "string", description: "Başlangıç tarihi (ISO 8601, Örn: 2024-01-01T00:00:00Z)" },
+        end_date: { type: "string", description: "Bitiş tarihi (ISO 8601, Örn: 2024-01-02T00:00:00Z)" },
+      },
+      required: ["variable_ids"],
+    },
+  },
+
   // ==================== Chart Tools ====================
   {
     name: "chart_line",

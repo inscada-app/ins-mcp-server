@@ -36,13 +36,23 @@ Yeteneklerin:
 - InfluxDB'deki zaman serisi verilerini sorgulama ve analiz etme
 - Verilerden line chart, bar chart, gauge göstergesi oluşturma
 - Script kodlarında arama ve karşılaştırma
+- inSCADA REST API üzerinden canlı değişken değerlerini okuma ve yazma
+- Aktif alarmları izleme ve bağlantı durumlarını kontrol etme
+- Script çalıştırma ve durumunu takip etme
+- REST API üzerinden tarihsel log verilerini çekme
 
 Kurallar:
 - Script güncellemelerinde MUTLAKA önce get_script ile mevcut kodu oku
-- Chart oluştururken dosya yolunu (file_path) mutlaka yanıtta belirt
+- inscada_set_value ile değer yazmadan ÖNCE kullanıcıdan onay al - bu gerçek ekipmana komut gönderir
+- Canlı değer sorulduğunda inscada_get_live_value/inscada_get_live_values kullan, InfluxDB değil
 - Türkçe yanıt ver
 - Teknik terimleri açıkla
-- Kod değişikliklerinde önce/sonra farkını göster`;
+- Kod değişikliklerinde önce/sonra farkını göster
+
+Chart kuralları:
+- Kullanıcı grafik/chart istediğinde MUTLAKA ilgili chart tool'unu (chart_line, chart_bar, chart_gauge, chart_multi) çağır. Sadece açıklama yazma, tool'u çalıştır.
+- Kullanıcı mevcut grafiğe yeni seri eklemek isterse chart_multi tool'unu kullanarak TÜM serileri (önceki + yeni) birlikte çiz. Açıklama yapma, direkt çiz.
+- Kullanıcı "yeniden çiz", "tekrar çiz", "güncelle" derse tool'u tekrar çağır, önceki sonucu tekrarlama.`;
 
 /**
  * Claude API ile tool_use döngüsü
@@ -188,6 +198,6 @@ app.listen(PORT, () => {
   console.log(`\n  ╔══════════════════════════════════════╗`);
   console.log(`  ║   inSCADA AI Chat v1.0               ║`);
   console.log(`  ║   http://localhost:${PORT}              ║`);
-  console.log(`  ║   Tools: ${TOOLS.length} (PG + Influx + Charts)  ║`);
+  console.log(`  ║   Tools: ${TOOLS.length} (PG+Influx+Chart+API) ║`);
   console.log(`  ╚══════════════════════════════════════╝\n`);
 });

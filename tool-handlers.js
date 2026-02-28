@@ -9,6 +9,129 @@ const https = require("https");
 const { URL } = require("url");
 
 // ============================================================
+// inSCADA REST API Client
+// Auth: POST /login (form-data) → ins_access_token + ins_refresh_token cookies
+// Token auto-refresh: 3.5 dk (4 dk expiry'den önce)
+// Her istekte X-Space header gönderilir (default_space)
+// Tarih formatı (loggedValues): "yyyy-MM-dd HH:mm:ss"
+// variableIds: explode format (variableIds=1&variableIds=2)
+// Fired alarms: project_id varsa /monitor endpoint kullanılır
+// ============================================================
+const INSCADA_API_URL = process.env.INSCADA_API_URL || "http://localhost:8081";
+const INSCADA_USERNAME = process.env.INSCADA_USERNAME;
+const INSCADA_PASSWORD = process.env.INSCADA_PASSWORD;
+
+class InscadaAPI {
+  constructor() {
+    this.accessToken = null;
+    this.refreshToken = null;
+    this.refreshTimer = null;
+  }
+
+  async login() {
+    const parsed = new URL(INSCADA_API_URL);
+    const protocol = parsed.protocol === "https:" ? https : http;
+    const boundary = "----FormBoundary" + Date.now().toString(16);
+    const formParts = [];
+    formParts.push(`--${boundary}\r\nContent-Disposition: form-data; name="username"\r\n\r\n${INSCADA_USERNAME}`);
+    formParts.push(`--${boundary}\r\nContent-Disposition: form-data; name="password"\r\n\r\n${INSCADA_PASSWORD}`);
+    const body = formParts.join("\r\n") + `\r\n--${boundary}--\r\n`;
+
+    return new Promise((resolve, reject) => {
+      const req = protocol.request({
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: "/login",
+        method: "POST",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": Buffer.byteLength(body),
+        },
+        rejectUnauthorized: false,
+      }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          const cookies = res.headers["set-cookie"] || [];
+          for (const c of cookies) {
+            const match = c.match(/^([^=]+)=([^;]*)/);
+            if (match) {
+              if (match[1] === "ins_access_token") this.accessToken = match[2];
+              if (match[1] === "ins_refresh_token") this.refreshToken = match[2];
+            }
+          }
+          if (!this.accessToken) {
+            reject(new Error(`inSCADA login başarısız (HTTP ${res.statusCode}): ${data.substring(0, 200)}`));
+            return;
+          }
+          // 3.5 dk'da bir token yenile
+          if (this.refreshTimer) clearInterval(this.refreshTimer);
+          this.refreshTimer = setInterval(() => this.login().catch(console.error), 3.5 * 60 * 1000);
+          resolve();
+        });
+      });
+      req.on("error", (err) => reject(new Error(`inSCADA login bağlantı hatası: ${err.message}`)));
+      req.setTimeout(10000, () => { req.destroy(); reject(new Error("inSCADA login zaman aşımı")); });
+      req.write(body);
+      req.end();
+    });
+  }
+
+  async request(method, pathWithQuery, body) {
+    if (!this.accessToken) await this.login();
+    const parsed = new URL(INSCADA_API_URL);
+    const protocol = parsed.protocol === "https:" ? https : http;
+    const bodyStr = body ? JSON.stringify(body) : null;
+
+    return new Promise((resolve, reject) => {
+      const headers = {
+        Accept: "application/json",
+        Cookie: `ins_access_token=${this.accessToken}; ins_refresh_token=${this.refreshToken}`,
+        "X-Space": "default_space",
+      };
+      if (bodyStr) {
+        headers["Content-Type"] = "application/json";
+        headers["Content-Length"] = Buffer.byteLength(bodyStr);
+      }
+
+      const req = protocol.request({
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: pathWithQuery,
+        method,
+        headers,
+        rejectUnauthorized: false,
+      }, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          if (res.statusCode === 401 || res.statusCode === 403) {
+            this.accessToken = null;
+            reject(new Error(`inSCADA API yetki hatası (${res.statusCode}). Tekrar deneyin.`));
+            return;
+          }
+          if (res.statusCode >= 400) {
+            reject(new Error(`inSCADA API hatası (${res.statusCode}): ${data.substring(0, 500)}`));
+            return;
+          }
+          try {
+            resolve(data ? JSON.parse(data) : { success: true, statusCode: res.statusCode });
+          } catch {
+            resolve({ raw: data, statusCode: res.statusCode });
+          }
+        });
+      });
+      req.on("error", (err) => reject(new Error(`inSCADA API bağlantı hatası: ${err.message}`)));
+      req.setTimeout(30000, () => { req.destroy(); reject(new Error("inSCADA API zaman aşımı")); });
+      if (bodyStr) req.write(bodyStr);
+      req.end();
+    });
+  }
+}
+
+const inscadaApi = new InscadaAPI();
+
+// ============================================================
 // PostgreSQL
 // ============================================================
 const pool = new Pool({
@@ -326,6 +449,56 @@ const handlers = {
     };
   },
 
+  // --- inSCADA REST API ---
+  async inscada_get_live_value({ project_id, variable_name }) {
+    return inscadaApi.request("GET", `/api/variables/value?projectId=${project_id}&name=${encodeURIComponent(variable_name)}`);
+  },
+
+  async inscada_get_live_values({ project_id, variable_names }) {
+    const names = Array.isArray(variable_names) ? variable_names.join(",") : variable_names;
+    return inscadaApi.request("GET", `/api/variables/values?projectId=${project_id}&names=${encodeURIComponent(names)}`);
+  },
+
+  async inscada_set_value({ project_id, variable_name, value }) {
+    return inscadaApi.request("POST", `/api/variables/value?projectId=${project_id}&name=${encodeURIComponent(variable_name)}`, { value });
+  },
+
+  async inscada_get_fired_alarms({ project_id, count = 100 }) {
+    if (project_id) {
+      return inscadaApi.request("GET", `/api/alarms/fired-alarms/monitor?projectId=${project_id}&count=${count}`);
+    }
+    return inscadaApi.request("GET", `/api/alarms/fired-alarms?pageSize=${count}&paged=true`);
+  },
+
+  async inscada_connection_status({ connection_ids }) {
+    const ids = Array.isArray(connection_ids) ? connection_ids.join(",") : connection_ids;
+    return inscadaApi.request("GET", `/api/connections/status?connectionIds=${encodeURIComponent(ids)}`);
+  },
+
+  async inscada_project_status({ project_id }) {
+    return inscadaApi.request("GET", `/api/projects/${project_id}/status`);
+  },
+
+  async inscada_run_script({ script_id }) {
+    return inscadaApi.request("POST", `/api/scripts/${script_id}/run`);
+  },
+
+  async inscada_script_status({ script_id }) {
+    return inscadaApi.request("GET", `/api/scripts/${script_id}/status`);
+  },
+
+  async inscada_logged_values({ variable_ids, start_date, end_date }) {
+    const ids = Array.isArray(variable_ids) ? variable_ids : String(variable_ids).split(",").map(s => s.trim());
+    const idParams = ids.map(id => `variableIds=${id}`).join("&");
+    // inSCADA expects "yyyy-MM-dd HH:mm:ss" format
+    const fmtDate = (d) => d.replace("T", " ").replace(/\.\d+/, "").replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
+    let path = `/api/variables/loggedValues?${idParams}`;
+    if (start_date) path += `&startDate=${encodeURIComponent(fmtDate(start_date))}`;
+    if (end_date) path += `&endDate=${encodeURIComponent(fmtDate(end_date))}`;
+    return inscadaApi.request("GET", path);
+  },
+
+  // --- Charts (veri döner, frontend çizer) ---
   async chart_multi({ series, time_range = "24h", group_by_time, title, y_label, database }) {
     const db = database || INFLUX_DB;
     const allSeries = [];

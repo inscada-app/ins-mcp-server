@@ -1,7 +1,7 @@
 # inSCADA Chat - Project Reference
 
 ## Overview
-Express.js + Claude API chat app with 22 tools for querying PostgreSQL (inscada), InfluxDB, and generating Charts.
+Express.js + Claude API chat app with 31 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts, and inSCADA REST API integration for live SCADA operations.
 
 ## Key Files
 - `server.js` - Express server, routes, Claude API integration
@@ -165,6 +165,51 @@ roles -> role_members -> users
 roles -> role_permissions -> permissions
 roles -> role_menus -> menus
 ```
+
+## inSCADA REST API Tools
+Base URL: `INSCADA_API_URL` (default: `http://localhost:8081`).
+
+### Auth Mekanizması
+- `POST /login` ile multipart form-data gönderilir (`username`, `password`)
+- Response `Set-Cookie` header'larında `ins_access_token` ve `ins_refresh_token` döner
+- Token'lar 3.5 dk'da bir otomatik yenilenir (4 dk expiry'den önce)
+- Her istekte `Cookie` header'ı + `X-Space: default_space` header'ı gönderilir
+- İlk istek geldiğinde lazy login yapılır, 401/403'te token sıfırlanır
+
+### Env Değişkenleri
+- `INSCADA_API_URL` — API base URL (varsayılan: `http://localhost:8081`)
+- `INSCADA_USERNAME` — Login kullanıcı adı
+- `INSCADA_PASSWORD` — Login şifresi
+
+### Tool Tablosu
+
+| # | Tool | Method | Endpoint | Açıklama |
+|---|------|--------|----------|----------|
+| 1 | `inscada_get_live_value` | GET | `/api/variables/value?projectId=X&name=Y` | Tek değişken canlı değer. Response: `{value, date, variableShortInfo: {name, connection, code, project}}` |
+| 2 | `inscada_get_live_values` | GET | `/api/variables/values?projectId=X&names=Y1,Y2` | Çoklu canlı değer. Response: `{varName: {value, date, ...}, ...}` |
+| 3 | `inscada_set_value` | POST | `/api/variables/value?projectId=X&name=Y` | Değişkene değer yaz. Body: `{value: N}`. **DİKKAT: Gerçek ekipmana komut gönderir** |
+| 4 | `inscada_get_fired_alarms` | GET | `/api/alarms/fired-alarms/monitor?projectId=X&count=N` | Aktif alarmlar. Response: `[{name, status, onTime, dsc, firedAlarmType, alarmId, part, ...}]` |
+| 5 | `inscada_connection_status` | GET | `/api/connections/status?connectionIds=X` | Bağlantı durumları. Response: `{connId: "Connected"\|"Disconnected"}` |
+| 6 | `inscada_project_status` | GET | `/api/projects/{id}/status` | Proje durumu. Response: `{scriptStatuses, connectionStatuses, alarmGroupStatuses, dataTransferStatuses, reportStatuses}` |
+| 7 | `inscada_run_script` | POST | `/api/scripts/{id}/run` | Script çalıştır. Script'in dönüş değerini response olarak verir |
+| 8 | `inscada_script_status` | GET | `/api/scripts/{id}/status` | Script durumu. Response: `"Not Scheduled"\|"Running"\|...` |
+| 9 | `inscada_logged_values` | GET | `/api/variables/loggedValues?variableIds=X&startDate=Y&endDate=Z` | Tarihsel log verisi. Response: `[{value, dttm, name, projectId, ...}]` |
+
+### Önemli Detaylar
+- **Tarih formatı**: `inscada_logged_values` için tarihler `yyyy-MM-dd HH:mm:ss` formatında gönderilmeli (Örn: `2026-02-27 00:00:00`). ISO 8601 formatı (`T`, `Z`, `+03:00`) otomatik dönüştürülür.
+- **variableIds**: `explode` parametresi — birden fazla ID için `variableIds=1&variableIds=2` formatında gönderilir (virgülle değil).
+- **Fired alarms**: `project_id` verilirse `/fired-alarms/monitor` endpoint'i kullanılır (daha güvenilir). Verilmezse `/fired-alarms` ile sayfalı sorgu yapılır.
+- **X-Space header**: Tüm isteklerde `X-Space: default_space` gönderilir. Multi-space ortamlarda bu değer değiştirilmeli.
+- **set_value güvenliği**: `SYSTEM_PROMPT`'ta kullanıcıdan onay alınması kuralı var — gerçek SCADA ekipmanına komut gönderir.
+
+### Live vs Historical Data
+- **Canlı (anlık) değerler**: `inscada_get_live_value` / `inscada_get_live_values` (REST API)
+- **Tarihsel zaman serisi**: `influx_query` / `influx_stats` (InfluxDB) veya `inscada_logged_values` (REST API)
+- **Grafikler**: `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi` (InfluxDB tabanlı)
+
+### Swagger UI
+Tüm API endpoint'leri: `http://localhost:8081/swagger-ui/`
+API dokümanı (JSON): `http://localhost:8081/v3/api-docs`
 
 ## Common Query Patterns
 - Join variable to project: `variable v JOIN project p ON v.project_id = p.project_id`
