@@ -8,6 +8,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const Anthropic = require("@anthropic-ai/sdk");
 const TOOLS = require("./tools");
 const { executeTool } = require("./tool-handlers");
@@ -54,7 +55,13 @@ Chart kuralları:
 - Kullanıcı mevcut grafiğe yeni seri eklemek isterse chart_multi tool'unu kullanarak TÜM serileri (önceki + yeni) birlikte çiz. Açıklama yapma, direkt çiz.
 - Kullanıcı "yeniden çiz", "tekrar çiz", "güncelle" derse tool'u tekrar çağır, önceki sonucu tekrarlama.
 - Kullanıcı "canlı gauge", "auto refresh gauge" veya "sürekli güncellenen gauge" isterse chart_gauge tool'unu auto_refresh=true, refresh_project_id ve refresh_variable_name parametreleriyle çağır.
-- Kullanıcı tahmin/forecast grafiği istediğinde şu adımları izle: (1) Önce chart_line veya influx_query ile tarihsel veriyi çek, (2) Veriyi analiz et — trend, ortalama, varyans gibi istatistikleri değerlendir, (3) Analiz sonucuna göre gelecek tahmin noktalarını (forecast_values) üret — her nokta {x: ISO_timestamp, y: number} formatında, (4) chart_forecast tool'unu tarihsel parametreler (measurement, field, time_range, where_clause, group_by_time) ve ürettiğin forecast_values ile çağır, (5) Kullanıcıya hangi yöntemle tahmin yaptığını kısaca açıkla (trend analizi, hareketli ortalama vb.).`;
+- Kullanıcı tahmin/forecast grafiği istediğinde şu adımları izle: (1) Önce chart_line veya influx_query ile tarihsel veriyi çek, (2) Veriyi analiz et — trend, ortalama, varyans gibi istatistikleri değerlendir, (3) Analiz sonucuna göre gelecek tahmin noktalarını (forecast_values) üret — her nokta {x: ISO_timestamp, y: number} formatında, (4) chart_forecast tool'unu tarihsel parametreler (measurement, field, time_range, where_clause, group_by_time) ve ürettiğin forecast_values ile çağır, (5) Kullanıcıya hangi yöntemle tahmin yaptığını kısaca açıkla (trend analizi, hareketli ortalama vb.).
+
+Excel kuralları:
+- Kullanıcı "excel olarak ver", "excel'e aktar", "xlsx indir", "dosya olarak ver" gibi isteklerde MUTLAKA önce ilgili veriyi çek (run_query, influx_query, list_spaces vb.), sonra export_excel tool'unu çağır.
+- Veriyi sheets formatına dönüştür: her sheet için {name, headers, rows}. headers sütun başlıkları (string dizisi), rows ise 2D dizi (her satır bir array).
+- file_name açıklayıcı olsun (Örn: "space_listesi", "proje_degiskenleri", "alarm_raporu").
+- Birden fazla veri seti varsa her birini ayrı sheet'e koy.`;
 
 /**
  * Claude API ile tool_use döngüsü
@@ -72,6 +79,7 @@ async function chat(conversationId, userMessage) {
 
   const toolResults = []; // İşlenen tool'ları takip et
   const chartDataList = []; // Chart verilerini topla
+  const downloadList = []; // Download verilerini topla
   let response;
   let currentMessages = [...messages];
 
@@ -104,6 +112,11 @@ async function chat(conversationId, userMessage) {
           // Chart data'yı topla
           if (result && result.__chart) {
             chartDataList.push(result);
+          }
+
+          // Download data'yı topla
+          if (result && result.__download) {
+            downloadList.push(result);
           }
 
           toolResults.push({
@@ -149,6 +162,7 @@ async function chat(conversationId, userMessage) {
   return {
     text,
     charts: chartDataList,
+    downloads: downloadList,
     tools_used: toolResults.map(t => ({ tool: t.tool, success: t.success })),
   };
 }
@@ -203,6 +217,21 @@ app.get("/api/live-value", async (req, res) => {
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", tools: TOOLS.length, uptime: process.uptime() });
+});
+
+// Download endpoint - Excel dosyalarını serve et
+app.get("/api/downloads/:filename", (req, res) => {
+  const filename = req.params.filename;
+  // Path traversal koruması
+  if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    return res.status(400).json({ error: "Geçersiz dosya adı" });
+  }
+  const downloadsDir = path.join(os.tmpdir(), "inscada-downloads");
+  const filePath = path.join(downloadsDir, filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "Dosya bulunamadı" });
+  }
+  res.download(filePath, filename);
 });
 
 // SPA fallback

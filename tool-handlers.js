@@ -7,6 +7,13 @@ const { Pool } = require("pg");
 const http = require("http");
 const https = require("https");
 const { URL } = require("url");
+const fs = require("fs");
+const os = require("os");
+const pathMod = require("path");
+const XLSX = require("xlsx");
+
+const DOWNLOADS_DIR = pathMod.join(os.tmpdir(), "inscada-downloads");
+if (!fs.existsSync(DOWNLOADS_DIR)) fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 
 // ============================================================
 // inSCADA REST API Client
@@ -536,6 +543,42 @@ const handlers = {
       title: title || `Multi Chart (${time_range})`,
       y_label: y_label || "Değer",
       series: allSeries,
+    };
+  },
+
+  // --- Export ---
+  async export_excel({ file_name, sheets }) {
+    const wb = XLSX.utils.book_new();
+    let totalRows = 0;
+    for (const sheet of sheets) {
+      const sheetName = (sheet.name || "Sheet").substring(0, 31);
+      const data = [sheet.headers, ...sheet.rows];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+
+      // Auto-size columns based on header lengths
+      ws["!cols"] = sheet.headers.map((h, i) => {
+        let maxLen = h.length;
+        for (const row of sheet.rows) {
+          if (row[i] != null) maxLen = Math.max(maxLen, String(row[i]).length);
+        }
+        return { wch: Math.min(maxLen + 2, 50) };
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      totalRows += sheet.rows.length;
+    }
+
+    const safeName = file_name.replace(/[^a-zA-Z0-9_\-]/g, "_");
+    const fileName = `${safeName}_${Date.now()}.xlsx`;
+    const filePath = pathMod.join(DOWNLOADS_DIR, fileName);
+    XLSX.writeFile(wb, filePath);
+
+    return {
+      __download: true,
+      file_name: fileName,
+      download_url: `/api/downloads/${fileName}`,
+      sheet_count: sheets.length,
+      total_rows: totalRows,
     };
   },
 

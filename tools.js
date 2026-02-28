@@ -470,6 +470,32 @@ const TOOLS = [
       required: ["measurement", "forecast_values"],
     },
   },
+
+  // ==================== Export Tools ====================
+  {
+    name: "export_excel",
+    description: "Veriyi Excel (.xlsx) dosyası olarak dışa aktarır. Birden fazla sheet destekler. Kullanıcı 'excel olarak ver', 'excel'e aktar', 'xlsx indir' gibi isteklerde kullan.",
+    input_schema: {
+      type: "object",
+      properties: {
+        file_name: { type: "string", description: "Dosya adı (.xlsx uzantısız). Örn: space_listesi, alarm_raporu" },
+        sheets: {
+          type: "array",
+          description: "Excel sheet'leri. Her biri {name, headers, rows} içerir.",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Sheet adı (max 31 karakter)" },
+              headers: { type: "array", items: { type: "string" }, description: "Sütun başlıkları" },
+              rows: { type: "array", items: { type: "array" }, description: "Satır verileri (2D dizi)" },
+            },
+            required: ["name", "headers", "rows"],
+          },
+        },
+      },
+      required: ["file_name", "sheets"],
+    },
+  },
 ];
 
 module.exports = TOOLS;

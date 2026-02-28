@@ -154,8 +154,8 @@
       }
 
       // Yanıtı göster
-      appendMessage("assistant", data.text, data.charts, toolsHtml);
-      saveMessage("assistant", data.text, data.charts, data.tools_used);
+      appendMessage("assistant", data.text, data.charts, toolsHtml, data.downloads);
+      saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads);
 
       // Chat başlığını güncelle
       updateChatTitle(text);
@@ -169,7 +169,7 @@
     inputEl.focus();
   }
 
-  function appendMessage(role, text, charts = [], toolsHtml = "") {
+  function appendMessage(role, text, charts = [], toolsHtml = "", downloads = []) {
     const msgEl = document.createElement("div");
     msgEl.className = `message ${role}`;
 
@@ -196,6 +196,37 @@
               </div>`;
             // Chart.js render'ı DOM'a eklendikten sonra çalışmalı
             setTimeout(() => window.renderChart(chartId, chart), 50);
+          }
+        }
+      }
+
+      // Download butonlarını render et
+      if (downloads && downloads.length) {
+        for (const dl of downloads) {
+          if (dl.__download) {
+            contentHtml += `
+              <div class="download-container">
+                <div class="download-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <polyline points="9 15 12 18 15 15"/>
+                  </svg>
+                </div>
+                <div class="download-info">
+                  <span class="download-name">${escapeHtml(dl.file_name)}</span>
+                  <span class="download-meta">${dl.sheet_count} sayfa, ${dl.total_rows} satır</span>
+                </div>
+                <a class="download-btn" href="${dl.download_url}" download="${escapeHtml(dl.file_name)}">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  İndir
+                </a>
+              </div>`;
           }
         }
       }
@@ -285,16 +316,16 @@
     chatTitle.textContent = conv.title || "Sohbet";
 
     for (const msg of conv.messages) {
-      appendMessage(msg.role, msg.text, msg.charts, "");
+      appendMessage(msg.role, msg.text, msg.charts, "", msg.downloads);
     }
     renderChatList();
   }
 
-  function saveMessage(role, text, charts = [], tools = []) {
+  function saveMessage(role, text, charts = [], tools = [], downloads = []) {
     if (!conversations[currentConversationId]) {
       conversations[currentConversationId] = { title: "Yeni Sohbet", messages: [], created: Date.now() };
     }
-    conversations[currentConversationId].messages.push({ role, text, charts, tools, time: Date.now() });
+    conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, time: Date.now() });
     localStorage.setItem("inscada_chats", JSON.stringify(conversations));
     renderChatList();
   }
