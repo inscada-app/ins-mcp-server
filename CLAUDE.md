@@ -1,7 +1,7 @@
 # inSCADA Chat - Project Reference
 
 ## Overview
-Express.js + Claude API chat app with 31 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts, and inSCADA REST API integration for live SCADA operations.
+Express.js + Claude API chat app with 32 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts (line, bar, gauge, multi, forecast), and inSCADA REST API integration for live SCADA operations.
 
 ## Key Files
 - `server.js` - Express server, routes, Claude API integration
@@ -205,7 +205,7 @@ Base URL: `INSCADA_API_URL` (default: `http://localhost:8081`).
 ### Live vs Historical Data
 - **Canlı (anlık) değerler**: `inscada_get_live_value` / `inscada_get_live_values` (REST API)
 - **Tarihsel zaman serisi**: `influx_query` / `influx_stats` (InfluxDB) veya `inscada_logged_values` (REST API)
-- **Grafikler**: `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi` (InfluxDB tabanlı)
+- **Grafikler**: `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi`, `chart_forecast` (InfluxDB tabanlı)
 - **Canlı Gauge**: `chart_gauge` + `auto_refresh=true` ile 2 sn'de bir REST API'den güncellenen gauge
 
 ### Swagger UI
@@ -240,6 +240,41 @@ Claude → chart_gauge(auto_refresh:true, refresh_project_id, refresh_variable_n
 - `chartIntervals` Map — containerId → intervalId
 - `chartDataRefs` Map — containerId → mutable {value, min, max, unit}
 - `stopAllGaugeRefreshes()` — newChat/loadConversation/beforeunload'da çağrılır
+
+## Forecast Chart (Tahmin Grafiği)
+`chart_forecast` tool'u tarihsel veri ile Claude'un ürettiği tahmin verilerini tek grafik üzerinde gösterir. Tarihsel kısım düz çizgi, tahmin kısmı kesikli çizgi (dashed) ve elmas noktalarla çizilir.
+
+### Parametreler
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `measurement` | string | Evet | Measurement adı (Örn: variable_value) |
+| `field` | string | Hayır | Field (varsayılan: value) |
+| `time_range` | string | Hayır | Tarihsel veri aralığı (Örn: 6h, 24h, 7d) |
+| `where_clause` | string | Hayır | InfluxDB filtre (Örn: "name"='AN01_Active_Power') |
+| `group_by_time` | string | Hayır | Zaman gruplama (Örn: 5m, 1h) |
+| `forecast_values` | array | Evet | Tahmin noktaları: `[{x: ISO_timestamp, y: number}, ...]` |
+| `forecast_label` | string | Hayır | Tahmin serisi etiketi (varsayılan: "Tahmin") |
+| `title` | string | Hayır | Grafik başlığı |
+| `y_label` | string | Hayır | Y ekseni birimi (Örn: kW, °C) |
+| `database` | string | Hayır | InfluxDB veritabanı |
+
+### Akış
+```
+Claude → tarihsel veriyi çek (influx_query/chart_line) → analiz et → forecast_values üret
+  → chart_forecast(measurement, field, time_range, where_clause, group_by_time, forecast_values)
+  → Handler: InfluxDB'den tarihsel seri (is_forecast: false) + tahmin serisi (is_forecast: true)
+  → Köprü noktası: tarihsel son nokta → tahmin başına eklenir (boşluksuz birleşim)
+  → Frontend: is_forecast=false → düz çizgi/dolgulu, is_forecast=true → kesikli çizgi/elmas/dolgu yok
+```
+
+### Frontend Stil Farkları
+| Özellik | Tarihsel (is_forecast: false) | Tahmin (is_forecast: true) |
+|---------|-------------------------------|----------------------------|
+| Çizgi stili | Düz (solid) | Kesikli (`borderDash: [6, 4]`) |
+| Dolgu | Var (`fill: true`) | Yok (`fill: false`) |
+| Nokta şekli | Daire (`circle`) | Elmas (`rectRot`) |
+| Nokta boyutu | 0 veya 3 (veri sayısına göre) | 4 (sabit) |
+| Arka plan | Renk dolgusu | Şeffaf (`transparent`) |
 
 ## Common Query Patterns
 - Join variable to project: `variable v JOIN project p ON v.project_id = p.project_id`
