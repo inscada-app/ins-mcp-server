@@ -1,7 +1,7 @@
 # inSCADA Chat - Project Reference
 
 ## Overview
-Express.js + Claude API chat app with 32 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts (line, bar, gauge, multi, forecast), and inSCADA REST API integration for live SCADA operations.
+Express.js + Claude API chat app with 33 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts (line, bar, gauge, multi, forecast), Excel export, and inSCADA REST API integration for live SCADA operations.
 
 ## Key Files
 - `server.js` - Express server, routes, Claude API integration
@@ -275,6 +275,54 @@ Claude → tarihsel veriyi çek (influx_query/chart_line) → analiz et → fore
 | Nokta şekli | Daire (`circle`) | Elmas (`rectRot`) |
 | Nokta boyutu | 0 veya 3 (veri sayısına göre) | 4 (sabit) |
 | Arka plan | Renk dolgusu | Şeffaf (`transparent`) |
+
+## Excel Export (Dosya İndirme)
+`export_excel` tool'u sorgu sonuçlarını .xlsx dosyası olarak dışa aktarır. SheetJS (xlsx) kütüphanesi kullanılır. Frontend'de indirme butonu gösterilir.
+
+### Parametreler
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `file_name` | string | Evet | Dosya adı (.xlsx uzantısız, Örn: space_listesi) |
+| `sheets` | array | Evet | Sheet dizisi: `[{name, headers, rows}, ...]` |
+| `sheets[].name` | string | Evet | Sheet adı (max 31 karakter) |
+| `sheets[].headers` | string[] | Evet | Sütun başlıkları |
+| `sheets[].rows` | array[] | Evet | Satır verileri (2D dizi, her satır bir array) |
+
+### Akış
+```
+User: "excel olarak ver"
+  → Claude: run_query/influx_query/list_spaces vb. ile veriyi çeker
+  → Claude: export_excel({file_name, sheets}) çağırır
+  → Handler: XLSX workbook oluşturur → os.tmpdir()/inscada-downloads/ altına yazar
+  → Return: {__download: true, file_name, download_url, sheet_count, total_rows}
+  → server.js: downloadList'e ekler, response'a downloads[] olarak döner
+  → Frontend: download-container render eder (dosya ikonu + ad + meta + İndir butonu)
+  → Tıklama → GET /api/downloads/:filename → dosya iner
+```
+
+### Dosya Depolama
+- Geçici klasör: `path.join(os.tmpdir(), "inscada-downloads")`
+- Dosya adı: `{safeName}_{timestamp}.xlsx` (özel karakterler `_` ile değiştirilir)
+- Sütun genişlikleri: header ve veri uzunluğuna göre otomatik ayarlanır (max 50 karakter)
+
+### Download Endpoint
+- `GET /api/downloads/:filename` — path traversal korumalı (`..`, `/`, `\` reddedilir)
+- `res.download()` ile dosya serve edilir
+
+### Frontend Render (app.js)
+- `appendMessage(role, text, charts, toolsHtml, downloads)` — downloads parametresi eklendi
+- `saveMessage(role, text, charts, tools, downloads)` — localStorage'a downloads kaydedilir
+- `loadConversation()` — `msg.downloads` geçirilir (sohbet geçmişinde butonlar korunur)
+- Download butonu: `.download-container` içinde SVG dosya ikonu + dosya adı + meta bilgi + "İndir" butonu
+
+### __download Pattern
+`__chart` pattern'inin aynısı:
+```
+tool handler return → {__download: true, ...}
+  → server.js chat() içinde result.__download tespiti → downloadList'e eklenir
+  → response: {text, charts, downloads, tools_used}
+  → frontend: downloads dizisi render edilir
+```
 
 ## Common Query Patterns
 - Join variable to project: `variable v JOIN project p ON v.project_id = p.project_id`
