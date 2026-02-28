@@ -522,6 +522,60 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #b0b8c1; }
 
+/* ============ Gauge Auto-Refresh ============ */
+.gauge-stop-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 92, 76, 0.15);
+  color: #ff5c4c;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  z-index: 10;
+}
+
+.gauge-stop-btn:hover {
+  background: rgba(255, 92, 76, 0.3);
+}
+
+.gauge-live-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: rgba(85, 205, 151, 0.12);
+  border: 1px solid rgba(85, 205, 151, 0.25);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2ea66d;
+  z-index: 10;
+}
+
+.gauge-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2ea66d;
+  animation: gaugePulse 1.5s infinite;
+}
+
+@keyframes gaugePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
 /* ============ Responsive ============ */
 @media (max-width: 768px) {
   #sidebar {

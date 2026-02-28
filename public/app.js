@@ -22,6 +22,11 @@
   let conversations = JSON.parse(localStorage.getItem("inscada_chats") || "{}");
   let isLoading = false;
 
+  // Gauge auto-refresh state
+  const chartInstances = new Map();   // containerId -> Chart instance
+  const chartIntervals = new Map();   // containerId -> intervalId
+  const chartDataRefs = new Map();    // containerId -> mutable chartData ref
+
   // Configure marked
   marked.setOptions({
     breaks: true,
@@ -236,6 +241,7 @@
   // ============ Conversation Management ============
 
   function newChat() {
+    stopAllGaugeRefreshes();
     currentConversationId = generateId();
     messagesEl.innerHTML = `
       <div class="welcome-message">
@@ -269,6 +275,7 @@
   }
 
   function loadConversation(id) {
+    stopAllGaugeRefreshes();
     currentConversationId = id;
     const conv = conversations[id];
     if (!conv || !conv.messages || !conv.messages.length) return;
@@ -364,15 +371,18 @@
         data: {
           datasets: (chartData.series || []).map((s, i) => {
             const c = CHART_COLORS[i % CHART_COLORS.length];
+            const isForecast = s.is_forecast === true;
             return {
               label: s.label,
               data: s.data.map(d => ({ x: new Date(d.x), y: d.y })),
               borderColor: c.border,
-              backgroundColor: c.bg,
+              backgroundColor: isForecast ? "transparent" : c.bg,
               borderWidth: 2,
-              pointRadius: s.data.length > 100 ? 0 : 3,
-              fill: true,
+              pointRadius: isForecast ? 4 : (s.data.length > 100 ? 0 : 3),
+              pointStyle: isForecast ? "rectRot" : "circle",
+              fill: !isForecast,
               tension: 0.3,
+              borderDash: isForecast ? [6, 4] : [],
             };
           }),
         },
@@ -415,13 +425,17 @@
         },
       });
     } else if (chartData.chart_type === "gauge") {
-      const pct = Math.min(Math.max((chartData.value - chartData.min) / (chartData.max - chartData.min), 0), 1);
+      // Mutable ref for live updates
+      const dataRef = { value: chartData.value, min: chartData.min, max: chartData.max, unit: chartData.unit || "" };
+      chartDataRefs.set(containerId, dataRef);
+
+      const pct = Math.min(Math.max((dataRef.value - dataRef.min) / (dataRef.max - dataRef.min), 0), 1);
       let color;
       if (pct < 0.5) color = "rgba(85, 205, 151, 0.8)";
       else if (pct < 0.75) color = "rgba(253, 191, 76, 0.8)";
       else color = "rgba(255, 92, 76, 0.8)";
 
-      new Chart(ctx, {
+      const chartInstance = new Chart(ctx, {
         type: "doughnut",
         data: {
           datasets: [{ data: [pct * 100, (1 - pct) * 100], backgroundColor: [color, "rgba(218,222,224,0.3)"], borderWidth: 0 }],
@@ -440,19 +454,112 @@
         plugins: [{
           id: "gaugeText",
           afterDraw(chart) {
+            const ref = chartDataRefs.get(containerId) || dataRef;
             const { ctx: c, width, height } = chart;
             c.save();
             c.textAlign = "center";
             c.font = "bold 24px PT Sans, Inter, sans-serif";
             c.fillStyle = "#475466";
-            c.fillText(`${chartData.value.toFixed(1)}${chartData.unit || ""}`, width / 2, height * 0.6);
+            c.fillText(`${ref.value.toFixed(1)}${ref.unit}`, width / 2, height * 0.6);
             c.font = "12px PT Sans, Inter, sans-serif";
             c.fillStyle = "#94A1B3";
-            c.fillText(`${chartData.min} — ${chartData.max}${chartData.unit || ""}`, width / 2, height * 0.73);
+            c.fillText(`${ref.min} — ${ref.max}${ref.unit}`, width / 2, height * 0.73);
             c.restore();
           },
         }],
       });
+
+      chartInstances.set(containerId, chartInstance);
+
+      if (chartData.auto_refresh && chartData.refresh_project_id && chartData.refresh_variable_name) {
+        startGaugeAutoRefresh(containerId, chartData);
+      }
     }
   };
+
+  // ============ Gauge Auto-Refresh ============
+
+  function startGaugeAutoRefresh(containerId, chartData) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // Make container position relative for absolute children
+    container.style.position = "relative";
+
+    // Add CANLI indicator
+    const indicator = document.createElement("div");
+    indicator.className = "gauge-live-indicator";
+    indicator.innerHTML = '<span class="gauge-live-dot"></span> CANLI';
+    container.appendChild(indicator);
+
+    // Add stop button
+    const stopBtn = document.createElement("button");
+    stopBtn.className = "gauge-stop-btn";
+    stopBtn.textContent = "■";
+    stopBtn.title = "Canlı güncellemeyi durdur";
+    stopBtn.addEventListener("click", () => stopGaugeAutoRefresh(containerId));
+    container.appendChild(stopBtn);
+
+    const intervalId = setInterval(async () => {
+      try {
+        const resp = await fetch(`/api/live-value?project_id=${chartData.refresh_project_id}&variable_name=${encodeURIComponent(chartData.refresh_variable_name)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        const val = parseFloat(data.value);
+        if (isNaN(val)) return;
+
+        const ref = chartDataRefs.get(containerId);
+        if (!ref) return;
+        ref.value = val;
+
+        const chart = chartInstances.get(containerId);
+        if (!chart) return;
+
+        const pct = Math.min(Math.max((val - ref.min) / (ref.max - ref.min), 0), 1);
+        let color;
+        if (pct < 0.5) color = "rgba(85, 205, 151, 0.8)";
+        else if (pct < 0.75) color = "rgba(253, 191, 76, 0.8)";
+        else color = "rgba(255, 92, 76, 0.8)";
+
+        chart.data.datasets[0].data = [pct * 100, (1 - pct) * 100];
+        chart.data.datasets[0].backgroundColor = [color, "rgba(218,222,224,0.3)"];
+        chart.update("none");
+      } catch (e) {
+        // silently ignore fetch errors
+      }
+    }, 2000);
+
+    chartIntervals.set(containerId, intervalId);
+  }
+
+  function stopGaugeAutoRefresh(containerId) {
+    const intervalId = chartIntervals.get(containerId);
+    if (intervalId) {
+      clearInterval(intervalId);
+      chartIntervals.delete(containerId);
+    }
+    chartInstances.delete(containerId);
+    chartDataRefs.delete(containerId);
+
+    const container = document.getElementById(containerId);
+    if (container) {
+      const indicator = container.querySelector(".gauge-live-indicator");
+      if (indicator) indicator.remove();
+      const stopBtn = container.querySelector(".gauge-stop-btn");
+      if (stopBtn) stopBtn.remove();
+    }
+  }
+
+  function stopAllGaugeRefreshes() {
+    for (const [containerId, intervalId] of chartIntervals) {
+      clearInterval(intervalId);
+    }
+    chartIntervals.clear();
+    chartInstances.clear();
+    chartDataRefs.clear();
+  }
+
+  // Cleanup on page unload
+  window.addEventListener("beforeunload", stopAllGaugeRefreshes);
 })();

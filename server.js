@@ -45,14 +45,16 @@ Kurallar:
 - Script güncellemelerinde MUTLAKA önce get_script ile mevcut kodu oku
 - inscada_set_value ile değer yazmadan ÖNCE kullanıcıdan onay al - bu gerçek ekipmana komut gönderir
 - Canlı değer sorulduğunda inscada_get_live_value/inscada_get_live_values kullan, InfluxDB değil
-- Türkçe yanıt ver
+- Kullanıcının yazdığı dilde yanıt ver (Türkçe sorulara Türkçe, İngilizce sorulara İngilizce)
 - Teknik terimleri açıkla
 - Kod değişikliklerinde önce/sonra farkını göster
 
 Chart kuralları:
 - Kullanıcı grafik/chart istediğinde MUTLAKA ilgili chart tool'unu (chart_line, chart_bar, chart_gauge, chart_multi) çağır. Sadece açıklama yazma, tool'u çalıştır.
 - Kullanıcı mevcut grafiğe yeni seri eklemek isterse chart_multi tool'unu kullanarak TÜM serileri (önceki + yeni) birlikte çiz. Açıklama yapma, direkt çiz.
-- Kullanıcı "yeniden çiz", "tekrar çiz", "güncelle" derse tool'u tekrar çağır, önceki sonucu tekrarlama.`;
+- Kullanıcı "yeniden çiz", "tekrar çiz", "güncelle" derse tool'u tekrar çağır, önceki sonucu tekrarlama.
+- Kullanıcı "canlı gauge", "auto refresh gauge" veya "sürekli güncellenen gauge" isterse chart_gauge tool'unu auto_refresh=true, refresh_project_id ve refresh_variable_name parametreleriyle çağır.
+- Kullanıcı tahmin/forecast grafiği istediğinde şu adımları izle: (1) Önce chart_line veya influx_query ile tarihsel veriyi çek, (2) Veriyi analiz et — trend, ortalama, varyans gibi istatistikleri değerlendir, (3) Analiz sonucuna göre gelecek tahmin noktalarını (forecast_values) üret — her nokta {x: ISO_timestamp, y: number} formatında, (4) chart_forecast tool'unu tarihsel parametreler (measurement, field, time_range, where_clause, group_by_time) ve ürettiğin forecast_values ile çağır, (5) Kullanıcıya hangi yöntemle tahmin yaptığını kısaca açıkla (trend analizi, hareketli ortalama vb.).`;
 
 /**
  * Claude API ile tool_use döngüsü
@@ -182,6 +184,20 @@ app.get("/api/conversations", (req, res) => {
     list.push({ id, messageCount: msgs.length, lastMessage: msgs[msgs.length - 1]?.content?.substring?.(0, 100) || "" });
   }
   res.json(list);
+});
+
+// Gauge auto-refresh: canlı değer proxy endpoint
+app.get("/api/live-value", async (req, res) => {
+  const { project_id, variable_name } = req.query;
+  if (!project_id || !variable_name) {
+    return res.status(400).json({ error: "project_id and variable_name required" });
+  }
+  try {
+    const result = await executeTool("inscada_get_live_value", { project_id: Number(project_id), variable_name });
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err.message || "Failed to fetch live value" });
+  }
 });
 
 // Health check

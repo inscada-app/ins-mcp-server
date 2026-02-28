@@ -430,7 +430,7 @@ const handlers = {
     };
   },
 
-  async chart_gauge({ measurement, field = "value", where_clause, min = 0, max = 100, title, unit = "", database }) {
+  async chart_gauge({ measurement, field = "value", where_clause, min = 0, max = 100, title, unit = "", database, auto_refresh, refresh_project_id, refresh_variable_name }) {
     const db = database || INFLUX_DB;
     let q = `SELECT last("${field}") as "${field}" FROM ${rpFrom(measurement)}`;
     if (where_clause) q += ` WHERE ${where_clause}`;
@@ -439,7 +439,7 @@ const handlers = {
     for (const s of res) { if (s.data && s.data.length) { val = s.data[0][field]; break; } }
     if (val === null) return { error: "Veri bulunamadı.", query: q };
 
-    return {
+    const result = {
       __chart: true,
       chart_type: "gauge",
       title: title || `${measurement} - ${field}`,
@@ -447,6 +447,14 @@ const handlers = {
       min, max, unit,
       query: q,
     };
+
+    if (auto_refresh && refresh_project_id && refresh_variable_name) {
+      result.auto_refresh = true;
+      result.refresh_project_id = refresh_project_id;
+      result.refresh_variable_name = refresh_variable_name;
+    }
+
+    return result;
   },
 
   // --- inSCADA REST API ---
@@ -528,6 +536,61 @@ const handlers = {
       title: title || `Multi Chart (${time_range})`,
       y_label: y_label || "Değer",
       series: allSeries,
+    };
+  },
+
+  async chart_forecast({ measurement, field = "value", time_range = "24h", where_clause, group_by_time, forecast_values, forecast_label, title, y_label, database }) {
+    const db = database || INFLUX_DB;
+
+    // 1) Tarihsel veriyi çek (chart_line ile aynı mantık)
+    let sel = group_by_time ? `mean("${field}") as "${field}"` : `"${field}"`;
+    let q = `SELECT ${sel} FROM ${rpFrom(measurement)} WHERE time > now() - ${time_range}`;
+    if (where_clause) q += ` AND ${where_clause}`;
+    if (group_by_time) q += ` GROUP BY time(${group_by_time}) fill(none)`;
+
+    const influxResults = formatInfluxResult(await influxQuery(q, db));
+
+    // 2) Tarihsel serileri is_forecast: false ile işaretle
+    const allSeries = [];
+    for (const r of influxResults) {
+      if (r.data && r.data.length) {
+        allSeries.push({
+          label: r.tags && Object.keys(r.tags).length ? Object.values(r.tags).join(" / ") : measurement,
+          data: r.data.map(d => ({ x: d.time, y: d[field] })).filter(d => d.y !== null),
+          is_forecast: false,
+        });
+      }
+    }
+
+    // 3) Tahmin serisini oluştur
+    if (forecast_values && forecast_values.length) {
+      const forecastData = forecast_values.map(p => ({ x: new Date(p.x).toISOString(), y: p.y }));
+
+      // Köprü noktası: tarihsel serinin son noktasını tahmin serisinin başına ekle
+      if (allSeries.length > 0) {
+        const lastHistorical = allSeries[allSeries.length - 1];
+        if (lastHistorical.data.length > 0) {
+          const bridgePoint = lastHistorical.data[lastHistorical.data.length - 1];
+          forecastData.unshift({ x: bridgePoint.x, y: bridgePoint.y });
+        }
+      }
+
+      allSeries.push({
+        label: forecast_label || "Tahmin",
+        data: forecastData,
+        is_forecast: true,
+      });
+    }
+
+    if (!allSeries.length) return { error: "Veri bulunamadı.", query: q };
+
+    return {
+      __chart: true,
+      chart_type: "line",
+      title: title || `${measurement} - ${field} Tahmin (${time_range})`,
+      y_label: y_label || field,
+      series: allSeries,
+      query: q,
     };
   },
 };

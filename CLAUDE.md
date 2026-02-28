@@ -206,10 +206,40 @@ Base URL: `INSCADA_API_URL` (default: `http://localhost:8081`).
 - **Canlı (anlık) değerler**: `inscada_get_live_value` / `inscada_get_live_values` (REST API)
 - **Tarihsel zaman serisi**: `influx_query` / `influx_stats` (InfluxDB) veya `inscada_logged_values` (REST API)
 - **Grafikler**: `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi` (InfluxDB tabanlı)
+- **Canlı Gauge**: `chart_gauge` + `auto_refresh=true` ile 2 sn'de bir REST API'den güncellenen gauge
 
 ### Swagger UI
 Tüm API endpoint'leri: `http://localhost:8081/swagger-ui/`
 API dokümanı (JSON): `http://localhost:8081/v3/api-docs`
+
+## Gauge Auto-Refresh (Canlı Güncelleme)
+`chart_gauge` tool'u `auto_refresh=true` parametresiyle çağrıldığında gauge 2 saniyede bir canlı değer alarak yerinde güncellenir.
+
+### Ek Parametreler
+| Parametre | Tip | Açıklama |
+|-----------|-----|----------|
+| `auto_refresh` | boolean | Canlı güncelleme açık/kapalı |
+| `refresh_project_id` | number | inSCADA REST API project ID |
+| `refresh_variable_name` | string | inSCADA REST API variable adı |
+
+### Proxy Endpoint
+- `GET /api/live-value?project_id=X&variable_name=Y` — server.js'teki proxy, `executeTool("inscada_get_live_value", ...)` kullanır
+
+### Veri Akışı
+```
+Claude → chart_gauge(auto_refresh:true, refresh_project_id, refresh_variable_name)
+  → InfluxDB'den ilk değer → __chart objesi frontend'e gönderilir
+  → Frontend gauge çizer, setInterval(2000) başlatır
+  → Her 2 sn: GET /api/live-value → server.js proxy → inSCADA REST API
+  → chart.update("none") ile gauge yerinde güncellenir
+  → Stop butonu veya sohbet değişince clearInterval
+```
+
+### Frontend State (app.js)
+- `chartInstances` Map — containerId → Chart instance
+- `chartIntervals` Map — containerId → intervalId
+- `chartDataRefs` Map — containerId → mutable {value, min, max, unit}
+- `stopAllGaugeRefreshes()` — newChat/loadConversation/beforeunload'da çağrılır
 
 ## Common Query Patterns
 - Join variable to project: `variable v JOIN project p ON v.project_id = p.project_id`

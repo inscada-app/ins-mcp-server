@@ -389,7 +389,7 @@ const TOOLS = [
   },
   {
     name: "chart_gauge",
-    description: "Anlık değer gauge göstergesi üretir. Retention policy otomatik uygulanır ({measurement}_rp).",
+    description: "Anlık değer gauge göstergesi üretir. Retention policy otomatik uygulanır ({measurement}_rp). auto_refresh=true ile gauge 2 saniyede bir inSCADA REST API'den canlı değer alarak otomatik güncellenir.",
     input_schema: {
       type: "object",
       properties: {
@@ -401,6 +401,9 @@ const TOOLS = [
         title: { type: "string" },
         unit: { type: "string", description: "Birim: °C, bar, %" },
         database: { type: "string" },
+        auto_refresh: { type: "boolean", description: "true ise gauge 2 sn'de bir canlı değerle güncellenir" },
+        refresh_project_id: { type: "number", description: "Canlı güncelleme için inSCADA project ID" },
+        refresh_variable_name: { type: "string", description: "Canlı güncelleme için inSCADA variable adı" },
       },
       required: ["measurement"],
     },
@@ -434,6 +437,37 @@ const TOOLS = [
         database: { type: "string" },
       },
       required: ["series"],
+    },
+  },
+  {
+    name: "chart_forecast",
+    description: "Tarihsel veri + tahmin (forecast) grafiği üretir. Tarihsel kısım düz çizgi, tahmin kısmı kesikli çizgi olarak tek chart'ta gösterilir. Claude önce tarihsel veriyi analiz edip forecast_values üretmeli.",
+    input_schema: {
+      type: "object",
+      properties: {
+        measurement: { type: "string", description: "Measurement adı (Örn: variable_value)" },
+        field: { type: "string", description: "Field (varsayılan: value)" },
+        time_range: { type: "string", description: "Tarihsel veri aralığı. Örn: 6h, 24h, 7d" },
+        where_clause: { type: "string", description: "Filtre. Örn: \"name\"='AN01_Active_Power'" },
+        group_by_time: { type: "string", description: "Zaman gruplama. Örn: 5m, 1h" },
+        forecast_values: {
+          type: "array",
+          description: "Claude'un ürettiği tahmin noktaları. [{x: ISO_timestamp, y: number}, ...]",
+          items: {
+            type: "object",
+            properties: {
+              x: { type: "string", description: "ISO 8601 zaman damgası" },
+              y: { type: "number", description: "Tahmin değeri" },
+            },
+            required: ["x", "y"],
+          },
+        },
+        forecast_label: { type: "string", description: "Tahmin serisinin etiketi (varsayılan: Tahmin)" },
+        title: { type: "string" },
+        y_label: { type: "string", description: "Y ekseni. Örn: kW, °C" },
+        database: { type: "string" },
+      },
+      required: ["measurement", "forecast_values"],
     },
   },
 ];
