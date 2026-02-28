@@ -380,12 +380,12 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            title: { display: true, text: chartData.title, color: "#d4dae3", font: { size: 14, weight: "bold" } },
-            legend: { display: (chartData.series || []).length > 1, labels: { color: "#94a1b3" } },
+            title: { display: true, text: chartData.title, color: "#475466", font: { size: 14, weight: "bold" } },
+            legend: { display: (chartData.series || []).length > 1, labels: { color: "#657584" } },
           },
           scales: {
-            x: { type: "time", ticks: { color: "#657584" }, grid: { color: "rgba(255,255,255,0.05)" } },
-            y: { title: { display: true, text: chartData.y_label || "", color: "#94a1b3" }, ticks: { color: "#657584" }, grid: { color: "rgba(255,255,255,0.05)" } },
+            x: { type: "time", ticks: { color: "#657584" }, grid: { color: "rgba(0,0,0,0.06)" } },
+            y: { title: { display: true, text: chartData.y_label || "", color: "#657584" }, ticks: { color: "#657584" }, grid: { color: "rgba(0,0,0,0.06)" } },
           },
         },
       });
@@ -405,26 +405,26 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            title: { display: true, text: chartData.title, color: "#d4dae3", font: { size: 14, weight: "bold" } },
+            title: { display: true, text: chartData.title, color: "#475466", font: { size: 14, weight: "bold" } },
             legend: { display: false },
           },
           scales: {
-            x: { ticks: { color: "#657584" }, grid: { color: "rgba(255,255,255,0.05)" } },
-            y: { title: { display: true, text: chartData.y_label || "", color: "#94a1b3" }, ticks: { color: "#657584" }, grid: { color: "rgba(255,255,255,0.05)" } },
+            x: { ticks: { color: "#657584" }, grid: { color: "rgba(0,0,0,0.06)" } },
+            y: { title: { display: true, text: chartData.y_label || "", color: "#657584" }, ticks: { color: "#657584" }, grid: { color: "rgba(0,0,0,0.06)" } },
           },
         },
       });
     } else if (chartData.chart_type === "gauge") {
       const pct = Math.min(Math.max((chartData.value - chartData.min) / (chartData.max - chartData.min), 0), 1);
       let color;
-      if (pct < 0.5) color = "rgba(75, 192, 192, 0.8)";
-      else if (pct < 0.75) color = "rgba(255, 205, 86, 0.8)";
-      else color = "rgba(255, 99, 132, 0.8)";
+      if (pct < 0.5) color = "rgba(85, 205, 151, 0.8)";
+      else if (pct < 0.75) color = "rgba(253, 191, 76, 0.8)";
+      else color = "rgba(255, 92, 76, 0.8)";
 
       new Chart(ctx, {
         type: "doughnut",
         data: {
-          datasets: [{ data: [pct * 100, (1 - pct) * 100], backgroundColor: [color, "rgba(50,50,60,0.3)"], borderWidth: 0 }],
+          datasets: [{ data: [pct * 100, (1 - pct) * 100], backgroundColor: [color, "rgba(218,222,224,0.3)"], borderWidth: 0 }],
         },
         options: {
           responsive: true,
@@ -433,7 +433,7 @@
           rotation: 270,
           cutout: "75%",
           plugins: {
-            title: { display: true, text: chartData.title, color: "#d4dae3", font: { size: 14, weight: "bold" } },
+            title: { display: true, text: chartData.title, color: "#475466", font: { size: 14, weight: "bold" } },
             legend: { display: false },
           },
         },
@@ -443,11 +443,11 @@
             const { ctx: c, width, height } = chart;
             c.save();
             c.textAlign = "center";
-            c.font = "bold 24px Inter, sans-serif";
-            c.fillStyle = "#e4e4e7";
+            c.font = "bold 24px PT Sans, Inter, sans-serif";
+            c.fillStyle = "#475466";
             c.fillText(`${chartData.value.toFixed(1)}${chartData.unit || ""}`, width / 2, height * 0.6);
-            c.font = "12px Inter, sans-serif";
-            c.fillStyle = "#71717a";
+            c.font = "12px PT Sans, Inter, sans-serif";
+            c.fillStyle = "#94A1B3";
             c.fillText(`${chartData.min} — ${chartData.max}${chartData.unit || ""}`, width / 2, height * 0.73);
             c.restore();
           },
