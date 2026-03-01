@@ -534,6 +534,48 @@ body.electron-app #app { height: calc(100vh - 33px); }
   30% { transform: translateY(-6px); opacity: 1; }
 }
 
+/* ============ Quick Panel ============ */
+.quick-panel {
+  padding: 10px 0 6px;
+  animation: panelSlideIn 0.2s ease;
+}
+
+@keyframes panelSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.quick-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quick-toggle {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.quick-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.quick-toggle.active {
+  color: var(--accent);
+  transform: rotate(45deg);
+}
+
 /* ============ Input Area ============ */
 .input-area {
   padding: 12px 20px 16px;

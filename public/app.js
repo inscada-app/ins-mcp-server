@@ -98,10 +98,26 @@
     clearChatBtn.addEventListener("click", clearChat);
     sidebarToggle?.addEventListener("click", () => sidebar.classList.toggle("open"));
 
-    // Quick action buttons
+    // Quick panel toggle
+    const quickToggle = document.getElementById("quickToggle");
+    const quickPanel = document.getElementById("quickPanel");
+    if (quickToggle && quickPanel) {
+      quickToggle.addEventListener("click", () => {
+        const open = quickPanel.style.display === "none";
+        quickPanel.style.display = open ? "block" : "none";
+        quickToggle.classList.toggle("active", open);
+      });
+    }
+
+    // Quick action buttons (works for both welcome screen and quick panel)
     document.addEventListener("click", (e) => {
       if (e.target.classList.contains("quick-btn")) {
         inputEl.value = e.target.dataset.msg;
+        // Close quick panel if open
+        if (quickPanel) {
+          quickPanel.style.display = "none";
+          quickToggle?.classList.remove("active");
+        }
         sendMessage();
       }
       // Close sidebar on mobile when clicking outside
@@ -306,13 +322,13 @@
           <button class="quick-btn" data-msg="Son 24 saatte güncellenen scriptleri göster">📝 Son Scriptler</button>
           <button class="quick-btn" data-msg="Sistemin genel durumunu özetle">🔍 Sistem Durumu</button>
           <button class="quick-btn" data-msg="Projeleri listele">🏭 Projeler</button>
-          <button class="quick-btn" data-msg="Aktif alarmları göster">🚨 Aktif Alarmlar</button>
-          <button class="quick-btn" data-msg="Bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
-          <button class="quick-btn" data-msg="Canlı değişken değeri oku">📡 Canlı Değer</button>
-          <button class="quick-btn" data-msg="Son 24 saatlik veriyi line chart olarak çiz">📈 Line Chart</button>
-          <button class="quick-btn" data-msg="Değişkenlerin ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
-          <button class="quick-btn" data-msg="Anlık değeri gauge olarak göster">🎯 Gauge</button>
-          <button class="quick-btn" data-msg="Son 24 saatlik veriyi analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
+          <button class="quick-btn" data-msg="Veritabanından tüm projeleri bul ve aktif alarmları göster">🚨 Aktif Alarmlar</button>
+          <button class="quick-btn" data-msg="Veritabanından tüm connection'ları çek ve bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
+          <button class="quick-btn" data-msg="Veritabanından projeleri ve değişkenleri listele, sonra ilk değişkenin canlı değerini oku">📡 Canlı Değer</button>
+          <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve son 24 saatlik veriyi line chart olarak çiz">📈 Line Chart</button>
+          <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
+          <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul ve anlık değerini gauge olarak göster">🎯 Gauge</button>
+          <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul, son 24 saatlik veriyi analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
         </div>
       </div>`;
     chatTitle.textContent = "Yeni Sohbet";
