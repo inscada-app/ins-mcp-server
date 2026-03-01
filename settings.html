@@ -284,7 +284,7 @@
       </div>
       <div class="field">
         <label>Database</label>
-        <input type="text" id="dbName" placeholder="inscada">
+        <input type="text" id="dbName" placeholder="promis">
       </div>
       <div class="row">
         <div class="field">
@@ -480,9 +480,9 @@
         const res = await window.electronAPI.testPostgres({
           host: document.getElementById("dbHost").value || "localhost",
           port: document.getElementById("dbPort").value || "5432",
-          database: document.getElementById("dbName").value || "inscada",
+          database: document.getElementById("dbName").value || "promis",
           user: document.getElementById("dbUser").value || "postgres",
-          password: document.getElementById("dbPassword").value || "",
+          password: document.getElementById("dbPassword").value || "1907",
         });
         if (res.success) {
           setTestResult(result, "ok", "Bağlantı başarılı ✓");

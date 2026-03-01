@@ -144,9 +144,9 @@ const inscadaApi = new InscadaAPI();
 const pool = new Pool({
   host: process.env.INSCADA_DB_HOST || "localhost",
   port: parseInt(process.env.INSCADA_DB_PORT || "5432"),
-  database: process.env.INSCADA_DB_NAME || "inscada",
-  user: process.env.INSCADA_DB_USER || "inscada",
-  password: process.env.INSCADA_DB_PASSWORD || "",
+  database: process.env.INSCADA_DB_NAME || "promis",
+  user: process.env.INSCADA_DB_USER || "postgres",
+  password: process.env.INSCADA_DB_PASSWORD || "1907",
   options: `-c search_path=inscada,public`,
 });
 

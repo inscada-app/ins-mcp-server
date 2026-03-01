@@ -347,9 +347,9 @@ ipcMain.handle("test-postgres", async (_event, config) => {
     const pool = new Pool({
       host: config.host || "localhost",
       port: parseInt(config.port) || 5432,
-      database: config.database || "inscada",
+      database: config.database || "promis",
       user: config.user || "postgres",
-      password: config.password || "",
+      password: config.password || "1907",
       connectionTimeoutMillis: 5000,
     });
     const client = await pool.connect();
