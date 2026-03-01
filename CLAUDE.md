@@ -224,6 +224,8 @@ API dokümanı (JSON): `http://localhost:8081/v3/api-docs`
 
 ### Proxy Endpoint
 - `GET /api/live-value?project_id=X&variable_name=Y` — server.js'teki proxy, `executeTool("inscada_get_live_value", ...)` kullanır
+- Response normalize edilir: inSCADA API'den gelen yapı (`{@class, value, date, variableShortInfo, ...}`) her zaman `{value, date}` formatına dönüştürülür
+- Nested response desteği: `result.value` veya `result.data.value` otomatik çözümlenir
 
 ### Veri Akışı
 ```
@@ -275,6 +277,12 @@ Claude → tarihsel veriyi çek (influx_query/chart_line) → analiz et → fore
 | Nokta şekli | Daire (`circle`) | Elmas (`rectRot`) |
 | Nokta boyutu | 0 veya 3 (veri sayısına göre) | 4 (sabit) |
 | Arka plan | Renk dolgusu | Şeffaf (`transparent`) |
+
+### Önemli Prompt Kuralları
+- Gauge istendiğinde `inscada_get_live_value` çağırma → doğrudan `chart_gauge` kullan (InfluxDB'den son değeri alır)
+- Tahmin grafiği istendiğinde `chart_line` değil `chart_forecast` kullan — sadece `chart_forecast` tahmin çizgisi ekleyebilir
+- ASLA chart tool çağırmadan "grafik gösterdim/oluşturdum" deme — tool çağrılmadan ekranda görsel oluşmaz
+- Chart render `setTimeout` 100ms ile DOM hazır olduktan sonra çalışır
 
 ## Excel Export (Dosya İndirme)
 `export_excel` tool'u sorgu sonuçlarını .xlsx dosyası olarak dışa aktarır. SheetJS (xlsx) kütüphanesi kullanılır. Frontend'de indirme butonu gösterilir.
@@ -335,7 +343,9 @@ Claude'un gereksiz tool çağrıları yapmasını engellemek için SYSTEM_PROMPT
 | Script listesi | `list_scripts` | - |
 | Script içeriği | `get_script` | - |
 | Script arama | `search_in_scripts` | - |
+| Tag/değişken listesi | `run_query` + `inscada.variable` (name/dsc ILIKE) | Gereksiz JOIN yok |
 
+- Tag/değişken ararken `inscada.variable` tablosundaki `name` ve `dsc` sütunlarıyla eşleştirme yap, diğer tabloları JOIN etme
 - `run_query` sadece hazır tool'ların karşılamadığı özel SQL sorguları için, DAİMA `inscada.` şemasıyla
 - `information_schema` / `pg_tables` sorguları yasaklandı (schema zaten SYSTEM_PROMPT'ta)
 - `influx_query` sadece hazır tool'lar (`influx_stats`, `chart_*`) yetersiz kaldığında
