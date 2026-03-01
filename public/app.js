@@ -68,6 +68,10 @@
     if (tbMin) tbMin.addEventListener("click", () => window.electronAPI.minimizeWindow());
     if (tbMax) tbMax.addEventListener("click", () => window.electronAPI.maximizeWindow());
     if (tbClose) tbClose.addEventListener("click", () => window.electronAPI.closeWindow());
+    const tbSettings = document.getElementById("tbSettings");
+    const tbAbout = document.getElementById("tbAbout");
+    if (tbSettings) tbSettings.addEventListener("click", () => window.electronAPI.openSettings());
+    if (tbAbout) tbAbout.addEventListener("click", () => window.electronAPI.openAbout());
   }
 
   // Init
@@ -301,6 +305,14 @@
           <button class="quick-btn" data-msg="InfluxDB'deki measurement'ları listele">📊 Measurement'lar</button>
           <button class="quick-btn" data-msg="Son 24 saatte güncellenen scriptleri göster">📝 Son Scriptler</button>
           <button class="quick-btn" data-msg="Sistemin genel durumunu özetle">🔍 Sistem Durumu</button>
+          <button class="quick-btn" data-msg="Projeleri listele">🏭 Projeler</button>
+          <button class="quick-btn" data-msg="Aktif alarmları göster">🚨 Aktif Alarmlar</button>
+          <button class="quick-btn" data-msg="Bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
+          <button class="quick-btn" data-msg="Canlı değişken değeri oku">📡 Canlı Değer</button>
+          <button class="quick-btn" data-msg="Son 24 saatlik veriyi line chart olarak çiz">📈 Line Chart</button>
+          <button class="quick-btn" data-msg="Değişkenlerin ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
+          <button class="quick-btn" data-msg="Anlık değeri gauge olarak göster">🎯 Gauge</button>
+          <button class="quick-btn" data-msg="Son 24 saatlik veriyi analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
         </div>
       </div>`;
     chatTitle.textContent = "Yeni Sohbet";

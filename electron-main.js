@@ -332,6 +332,14 @@ ipcMain.on("close-about", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close();
 });
 
+ipcMain.on("open-settings", () => {
+  createSettingsWindow(false);
+});
+
+ipcMain.on("open-about", () => {
+  createAboutWindow();
+});
+
 // ── IPC: Test connections ───────────────────────────────────────
 ipcMain.handle("test-postgres", async (_event, config) => {
   try {

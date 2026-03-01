@@ -67,6 +67,33 @@ body {
   color: var(--text-secondary);
 }
 
+.tb-menu {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.tb-menu-btn {
+  width: 32px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.tb-menu-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .tb-controls {
   display: flex;
   -webkit-app-region: no-drag;

@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getAppInfo: () => ipcRenderer.invoke("get-app-info"),
   closeAbout: () => ipcRenderer.send("close-about"),
 
+  // Menu actions
+  openSettings: () => ipcRenderer.send("open-settings"),
+  openAbout: () => ipcRenderer.send("open-about"),
+
   // Test connections
   testPostgres: (config) => ipcRenderer.invoke("test-postgres", config),
   testInflux: (config) => ipcRenderer.invoke("test-influx", config),
