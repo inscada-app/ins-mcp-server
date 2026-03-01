@@ -1,5 +1,5 @@
 /**
- * inSCADA Chat — Electron Main Process
+ * inSCADA AI Asistan — Electron Main Process
  * Express server'ı gömülü çalıştırır, Settings yönetimi yapar
  */
 
@@ -149,7 +149,7 @@ function createMainWindow() {
     minHeight: 600,
     frame: false,
     icon: path.join(__dirname, "assets", "icon.ico"),
-    title: "inSCADA Chat",
+    title: "inSCADA AI Asistan",
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -188,7 +188,7 @@ function createSettingsWindow(isFirstRun = false) {
     resizable: true,
     minimizable: false,
     icon: path.join(__dirname, "assets", "icon.ico"),
-    title: "inSCADA Chat — Ayarlar",
+    title: "inSCADA AI Asistan — Ayarlar",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

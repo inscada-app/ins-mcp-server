@@ -1,5 +1,5 @@
 /**
- * inSCADA Chat Server
+ * inSCADA AI Asistan Server
  * Express backend - Claude API ile tool_use döngüsü
  */
 
@@ -59,6 +59,8 @@ Chart kuralları:
 - Kullanıcı mevcut grafiğe yeni seri eklemek isterse chart_multi tool'unu kullanarak TÜM serileri (önceki + yeni) birlikte çiz. Açıklama yapma, direkt çiz.
 - Kullanıcı "yeniden çiz", "tekrar çiz", "güncelle" derse tool'u tekrar çağır, önceki sonucu tekrarlama.
 - Kullanıcı "canlı gauge", "auto refresh gauge" veya "sürekli güncellenen gauge" isterse chart_gauge tool'unu auto_refresh=true, refresh_project_id ve refresh_variable_name parametreleriyle çağır.
+- Kullanıcı bir değişkenin canlı değerini gauge olarak görmek istediğinde, önce inscada_get_live_value çağırma — doğrudan chart_gauge tool'unu çağır. chart_gauge zaten InfluxDB'den son değeri alır ve görsel gauge üretir. Canlı güncelleme isteniyorsa auto_refresh=true ekle.
+- ASLA gauge/chart gösterdiğini metin olarak iddia etme — chart tool'unu gerçekten çağırmadan gauge görünmez. Tool çağırmadan "gauge gösterdim" deme.
 - Kullanıcı tahmin/forecast grafiği istediğinde şu adımları izle: (1) Önce chart_line veya influx_query ile tarihsel veriyi çek, (2) Veriyi analiz et — trend, ortalama, varyans gibi istatistikleri değerlendir, (3) Analiz sonucuna göre gelecek tahmin noktalarını (forecast_values) üret — her nokta {x: ISO_timestamp, y: number} formatında, (4) chart_forecast tool'unu tarihsel parametreler (measurement, field, time_range, where_clause, group_by_time) ve ürettiğin forecast_values ile çağır, (5) Kullanıcıya hangi yöntemle tahmin yaptığını kısaca açıkla (trend analizi, hareketli ortalama vb.).
 
 Excel kuralları:
@@ -73,6 +75,7 @@ Tool öncelik kuralları:
 - Script listesi → list_scripts kullan
 - Script içeriği → get_script kullan
 - Script arama → search_in_scripts kullan
+- Tag/değişken listesi → run_query ile inscada.variable tablosundan project_id filtresiyle çek. İlgili tagları bulmak için name ve dsc sütunlarındaki ifadelerle eşleştirme yap (ILIKE/pattern). Tüm detay sütunları getirilebilir ama ilişkiyi name ve dsc üzerinden kur. Diğer tabloları (frame, device, connection vb.) JOIN etme, gereksiz araştırma yapma.
 - run_query'yi SADECE yukarıdaki tool'ların karşılamadığı özel SQL sorguları için kullan
 - run_query kullanırken tablo adlarında DAİMA inscada şemasını kullan (inscada.project, inscada.script, inscada.variable vb.)
 - ASLA information_schema veya pg_tables sorgusu yapma — tablo yapısı zaten sana verildi
@@ -323,7 +326,7 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, "127.0.0.1", () => {
   console.log(`\n  ╔══════════════════════════════════════╗`);
-  console.log(`  ║   inSCADA AI Chat v1.0               ║`);
+  console.log(`  ║   inSCADA AI Asistan v1.1             ║`);
   console.log(`  ║   http://127.0.0.1:${PORT}             ║`);
   console.log(`  ║   Tools: ${TOOLS.length} (PG+Influx+Chart+API) ║`);
   console.log(`  ╚══════════════════════════════════════╝\n`);

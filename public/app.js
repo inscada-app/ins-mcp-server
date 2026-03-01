@@ -1,5 +1,5 @@
 /**
- * inSCADA AI Chat - Frontend
+ * inSCADA AI Asistan - Frontend
  */
 
 (function () {

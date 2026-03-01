@@ -1,7 +1,7 @@
-# inSCADA Chat - Project Reference
+# inSCADA AI Asistan - Project Reference
 
 ## Overview
-Express.js + Claude API chat app with 33 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts (line, bar, gauge, multi, forecast), Excel export, and inSCADA REST API integration for live SCADA operations.
+Express.js + Claude API asistan app with 33 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts (line, bar, gauge, multi, forecast), Excel export, and inSCADA REST API integration for live SCADA operations.
 
 ## Key Files
 - `server.js` - Express server, routes, Claude API integration
