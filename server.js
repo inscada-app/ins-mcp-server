@@ -271,7 +271,9 @@ app.get("/api/live-value", async (req, res) => {
   }
   try {
     const result = await executeTool("inscada_get_live_value", { project_id: Number(project_id), variable_name });
-    res.json(result);
+    // Normalize: her zaman {value: number} dönsün
+    const val = result?.value !== undefined ? result.value : (result?.data?.value !== undefined ? result.data.value : null);
+    res.json({ value: val, date: result?.date || result?.data?.date || null });
   } catch (err) {
     res.status(502).json({ error: err.message || "Failed to fetch live value" });
   }

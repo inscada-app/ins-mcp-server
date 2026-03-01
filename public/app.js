@@ -236,7 +236,7 @@
                 <canvas></canvas>
               </div>`;
             // Chart.js render'ı DOM'a eklendikten sonra çalışmalı
-            setTimeout(() => window.renderChart(chartId, chart), 50);
+            setTimeout(() => window.renderChart(chartId, chart), 100);
           }
         }
       }
@@ -665,7 +665,9 @@
         if (!resp.ok) return;
         const data = await resp.json();
 
-        const val = parseFloat(data.value);
+        // REST API response: {value, date, variableShortInfo} veya nested
+        const rawVal = data.value !== undefined ? data.value : (data.data && data.data.value);
+        const val = parseFloat(rawVal);
         if (isNaN(val)) return;
 
         const ref = chartDataRefs.get(containerId);
