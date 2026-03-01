@@ -160,8 +160,29 @@ const INFLUX_USER = process.env.INFLUX_USER || "";
 const INFLUX_PASSWORD = process.env.INFLUX_PASSWORD || "";
 const INFLUX_USE_SSL = process.env.INFLUX_USE_SSL === "true";
 
+// InfluxQL injection sanitization
+function sanitizeInflux(input) {
+  if (!input || typeof input !== "string") return "";
+  const forbidden = /;|DROP\s|DELETE\s|CREATE\s|ALTER\s|GRANT\s|INTO\s/i;
+  if (forbidden.test(input)) throw new Error("Geçersiz InfluxDB ifadesi.");
+  return input;
+}
+
+function sanitizeInfluxIdentifier(name) {
+  if (!name || typeof name !== "string") return "";
+  if (!/^[a-zA-Z0-9_\-]+$/.test(name)) throw new Error("Geçersiz measurement/field adı.");
+  return name;
+}
+
+function sanitizeInfluxTimeRange(range) {
+  if (!range || typeof range !== "string") return "24h";
+  if (!/^\d+[smhdw]$/.test(range)) throw new Error("Geçersiz zaman aralığı formatı.");
+  return range;
+}
+
 // Retention policy convention: {measurement}_rp
 function rpFrom(measurement) {
+  sanitizeInfluxIdentifier(measurement);
   return `"${measurement}_rp"."${measurement}"`;
 }
 
@@ -311,8 +332,12 @@ const handlers = {
   async run_query({ query }) {
     const t = query.trim().toUpperCase();
     if (!t.startsWith("SELECT") && !t.startsWith("WITH")) return { error: "Sadece SELECT izinli." };
-    for (const kw of ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "CREATE"]) {
-      if (t.includes(kw + " ")) return { error: `'${kw}' kullanılamaz.` };
+
+    if (query.includes(";")) return { error: "Birden fazla sorgu çalıştırılamaz." };
+    if (/--/.test(query) || /\/\*/.test(query)) return { error: "SQL yorumları kullanılamaz." };
+
+    for (const kw of ["INSERT","UPDATE","DELETE","DROP","ALTER","TRUNCATE","CREATE","GRANT","REVOKE","EXECUTE","EXEC"]) {
+      if (new RegExp(`\\b${kw}\\b`).test(t)) return { error: `'${kw}' kullanılamaz.` };
     }
     const r = await pool.query(query);
     return { rowCount: r.rowCount, rows: r.rows };
@@ -332,7 +357,7 @@ const handlers = {
   },
 
   async influx_show_tag_values({ measurement, tag_key, database }) {
-    return formatInfluxResult(await influxQuery(`SHOW TAG VALUES FROM ${rpFrom(measurement)} WITH KEY = "${tag_key}"`, database || INFLUX_DB));
+    return formatInfluxResult(await influxQuery(`SHOW TAG VALUES FROM ${rpFrom(measurement)} WITH KEY = "${sanitizeInfluxIdentifier(tag_key)}"`, database || INFLUX_DB));
   },
 
   async influx_show_field_keys({ measurement, database }) {
@@ -347,17 +372,23 @@ const handlers = {
   async influx_query({ query, database }) {
     const t = query.trim().toUpperCase();
     if (!t.startsWith("SELECT") && !t.startsWith("SHOW")) return { error: "Sadece SELECT/SHOW izinli." };
-    for (const kw of ["INSERT", "DELETE", "DROP", "ALTER", "CREATE", "INTO"]) {
-      if (t.includes(kw + " ")) return { error: `'${kw}' kullanılamaz.` };
+
+    if (query.includes(";")) return { error: "Birden fazla sorgu çalıştırılamaz." };
+    if (/--/.test(query) || /\/\*/.test(query)) return { error: "Yorumlar kullanılamaz." };
+
+    for (const kw of ["INSERT","DELETE","DROP","ALTER","CREATE","INTO","GRANT","REVOKE"]) {
+      if (new RegExp(`\\b${kw}\\b`).test(t)) return { error: `'${kw}' kullanılamaz.` };
     }
     return formatInfluxResult(await influxQuery(query, database || INFLUX_DB));
   },
 
   async influx_stats({ measurement, field = "value", time_range = "24h", where_clause, group_by, database }) {
     const db = database || INFLUX_DB;
-    let q = `SELECT count("${field}") as count, mean("${field}") as mean, min("${field}") as min, max("${field}") as max, stddev("${field}") as stddev, last("${field}") as last_value FROM ${rpFrom(measurement)} WHERE time > now() - ${time_range}`;
-    if (where_clause) q += ` AND ${where_clause}`;
-    if (group_by) q += ` GROUP BY "${group_by}"`;
+    const sf = sanitizeInfluxIdentifier(field);
+    const str = sanitizeInfluxTimeRange(time_range);
+    let q = `SELECT count("${sf}") as count, mean("${sf}") as mean, min("${sf}") as min, max("${sf}") as max, stddev("${sf}") as stddev, last("${sf}") as last_value FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
+    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
+    if (group_by) q += ` GROUP BY "${sanitizeInfluxIdentifier(group_by)}"`;
     return { measurement, field, time_range, statistics: formatInfluxResult(await influxQuery(q, db)) };
   },
 
@@ -385,9 +416,13 @@ const handlers = {
   // --- Charts (veri döner, frontend çizer) ---
   async chart_line({ measurement, field = "value", time_range = "24h", where_clause, group_by_tag, group_by_time, title, y_label, database }) {
     const db = database || INFLUX_DB;
-    let sel = group_by_time ? `mean("${field}") as "${field}"` : `"${field}"`;
-    let q = `SELECT ${sel} FROM ${rpFrom(measurement)} WHERE time > now() - ${time_range}`;
-    if (where_clause) q += ` AND ${where_clause}`;
+    const sf = sanitizeInfluxIdentifier(field);
+    const str = sanitizeInfluxTimeRange(time_range);
+    if (group_by_time) sanitizeInfluxIdentifier(group_by_time.replace(/\d+/g, "").trim() || "m");
+    if (group_by_tag) sanitizeInfluxIdentifier(group_by_tag);
+    let sel = group_by_time ? `mean("${sf}") as "${sf}"` : `"${sf}"`;
+    let q = `SELECT ${sel} FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
+    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
     const gp = [];
     if (group_by_time) gp.push(`time(${group_by_time})`);
     if (group_by_tag) gp.push(`"${group_by_tag}"`);
@@ -399,7 +434,6 @@ const handlers = {
       return { error: "Veri bulunamadı.", query: q };
     }
 
-    // Frontend'in çizeceği chart data
     return {
       __chart: true,
       chart_type: "line",
@@ -407,7 +441,7 @@ const handlers = {
       y_label: y_label || field,
       series: influxResults.filter(r => r.data && r.data.length).map(r => ({
         label: r.tags && Object.keys(r.tags).length ? Object.values(r.tags).join(" / ") : measurement,
-        data: r.data.map(d => ({ x: d.time, y: d[field] })).filter(d => d.y !== null),
+        data: r.data.map(d => ({ x: d.time, y: d[sf] })).filter(d => d.y !== null),
       })),
       query: q,
     };
@@ -415,14 +449,18 @@ const handlers = {
 
   async chart_bar({ measurement, field = "value", aggregation = "mean", time_range = "24h", group_by_tag, where_clause, title, y_label, database }) {
     const db = database || INFLUX_DB;
-    let q = `SELECT ${aggregation}("${field}") as "${field}" FROM ${rpFrom(measurement)} WHERE time > now() - ${time_range}`;
-    if (where_clause) q += ` AND ${where_clause}`;
-    q += ` GROUP BY "${group_by_tag}"`;
+    const sf = sanitizeInfluxIdentifier(field);
+    const str = sanitizeInfluxTimeRange(time_range);
+    const sagg = sanitizeInfluxIdentifier(aggregation);
+    const sgt = sanitizeInfluxIdentifier(group_by_tag);
+    let q = `SELECT ${sagg}("${sf}") as "${sf}" FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
+    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
+    q += ` GROUP BY "${sgt}"`;
 
     const res = formatInfluxResult(await influxQuery(q, db));
     const labels = [], values = [];
     for (const s of res) {
-      if (s.tags && s.data && s.data.length) { labels.push(Object.values(s.tags).join("/")); values.push(s.data[0][field] || 0); }
+      if (s.tags && s.data && s.data.length) { labels.push(Object.values(s.tags).join("/")); values.push(s.data[0][sf] || 0); }
     }
     if (!labels.length) return { error: "Veri bulunamadı.", query: q };
 
@@ -439,11 +477,12 @@ const handlers = {
 
   async chart_gauge({ measurement, field = "value", where_clause, min = 0, max = 100, title, unit = "", database, auto_refresh, refresh_project_id, refresh_variable_name }) {
     const db = database || INFLUX_DB;
-    let q = `SELECT last("${field}") as "${field}" FROM ${rpFrom(measurement)}`;
-    if (where_clause) q += ` WHERE ${where_clause}`;
+    const sf = sanitizeInfluxIdentifier(field);
+    let q = `SELECT last("${sf}") as "${sf}" FROM ${rpFrom(measurement)}`;
+    if (where_clause) q += ` WHERE ${sanitizeInflux(where_clause)}`;
     const res = formatInfluxResult(await influxQuery(q, db));
     let val = null;
-    for (const s of res) { if (s.data && s.data.length) { val = s.data[0][field]; break; } }
+    for (const s of res) { if (s.data && s.data.length) { val = s.data[0][sf]; break; } }
     if (val === null) return { error: "Veri bulunamadı.", query: q };
 
     const result = {
@@ -516,13 +555,14 @@ const handlers = {
   // --- Charts (veri döner, frontend çizer) ---
   async chart_multi({ series, time_range = "24h", group_by_time, title, y_label, database }) {
     const db = database || INFLUX_DB;
+    const str = sanitizeInfluxTimeRange(time_range);
     const allSeries = [];
 
     for (const s of series) {
-      const f = s.field || "value";
+      const f = sanitizeInfluxIdentifier(s.field || "value");
       let sel = group_by_time ? `mean("${f}") as "${f}"` : `"${f}"`;
-      let q = `SELECT ${sel} FROM ${rpFrom(s.measurement)} WHERE time > now() - ${time_range}`;
-      if (s.where_clause) q += ` AND ${s.where_clause}`;
+      let q = `SELECT ${sel} FROM ${rpFrom(s.measurement)} WHERE time > now() - ${str}`;
+      if (s.where_clause) q += ` AND ${sanitizeInflux(s.where_clause)}`;
       if (group_by_time) q += ` GROUP BY time(${group_by_time}) fill(none)`;
 
       for (const r of formatInfluxResult(await influxQuery(q, db))) {
@@ -584,11 +624,13 @@ const handlers = {
 
   async chart_forecast({ measurement, field = "value", time_range = "24h", where_clause, group_by_time, forecast_values, forecast_label, title, y_label, database }) {
     const db = database || INFLUX_DB;
+    const sf = sanitizeInfluxIdentifier(field);
+    const str = sanitizeInfluxTimeRange(time_range);
 
     // 1) Tarihsel veriyi çek (chart_line ile aynı mantık)
-    let sel = group_by_time ? `mean("${field}") as "${field}"` : `"${field}"`;
-    let q = `SELECT ${sel} FROM ${rpFrom(measurement)} WHERE time > now() - ${time_range}`;
-    if (where_clause) q += ` AND ${where_clause}`;
+    let sel = group_by_time ? `mean("${sf}") as "${sf}"` : `"${sf}"`;
+    let q = `SELECT ${sel} FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
+    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
     if (group_by_time) q += ` GROUP BY time(${group_by_time}) fill(none)`;
 
     const influxResults = formatInfluxResult(await influxQuery(q, db));
@@ -599,7 +641,7 @@ const handlers = {
       if (r.data && r.data.length) {
         allSeries.push({
           label: r.tags && Object.keys(r.tags).length ? Object.values(r.tags).join(" / ") : measurement,
-          data: r.data.map(d => ({ x: d.time, y: d[field] })).filter(d => d.y !== null),
+          data: r.data.map(d => ({ x: d.time, y: d[sf] })).filter(d => d.y !== null),
           is_forecast: false,
         });
       }

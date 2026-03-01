@@ -182,13 +182,13 @@
       let toolsHtml = "";
       if (data.tools_used && data.tools_used.length) {
         toolsHtml = data.tools_used
-          .map((t) => `<div class="tool-indicator"><span class="tool-dot"></span>${t.tool} ${t.success ? "✓" : "✗"}</div>`)
+          .map((t) => `<div class="tool-indicator"><span class="tool-dot"></span>${escapeHtml(t.tool)} ${t.success ? "✓" : "✗"}</div>`)
           .join(" ");
       }
 
       // Yanıtı göster
-      appendMessage("assistant", data.text, data.charts, toolsHtml, data.downloads, data.usage);
-      saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads, data.usage);
+      appendMessage("assistant", data.text, data.charts, toolsHtml, data.downloads, data.usage, data.confirmations);
+      saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads, data.usage, data.confirmations);
 
       // Token sayacını güncelle
       if (data.usage && data.usage.total_tokens) {
@@ -210,7 +210,7 @@
     inputEl.focus();
   }
 
-  function appendMessage(role, text, charts = [], toolsHtml = "", downloads = [], usage = null) {
+  function appendMessage(role, text, charts = [], toolsHtml = "", downloads = [], usage = null, confirmations = []) {
     const msgEl = document.createElement("div");
     msgEl.className = `message ${role}`;
 
@@ -221,8 +221,8 @@
       // Tool indicators
       if (toolsHtml) contentHtml += toolsHtml;
 
-      // Markdown render
-      contentHtml += marked.parse(text || "");
+      // Markdown render (XSS koruması: DOMPurify)
+      contentHtml += DOMPurify.sanitize(marked.parse(text || ""));
 
       // Chart'ları Canvas olarak render et
       if (charts && charts.length) {
@@ -267,6 +267,25 @@
                   </svg>
                   İndir
                 </a>
+              </div>`;
+          }
+        }
+      }
+      // Onay kutuları
+      if (confirmations && confirmations.length) {
+        for (const c of confirmations) {
+          if (c.pending_confirmation) {
+            const toolName = escapeHtml(c.tool);
+            const inputJson = escapeHtml(JSON.stringify(c.input, null, 2));
+            contentHtml += `
+              <div class="confirm-action" data-action-id="${escapeHtml(c.action_id)}">
+                <div class="confirm-header">⚠️ Onay Gerekli: <strong>${toolName}</strong></div>
+                <pre class="confirm-params"><code>${inputJson}</code></pre>
+                <div class="confirm-message">${escapeHtml(c.message)}</div>
+                <div class="confirm-btns">
+                  <button class="btn-approve" onclick="confirmAction('${escapeHtml(c.action_id)}', true)">Onayla</button>
+                  <button class="btn-deny" onclick="confirmAction('${escapeHtml(c.action_id)}', false)">İptal</button>
+                </div>
               </div>`;
           }
         }
@@ -374,16 +393,16 @@
     chatTitle.textContent = conv.title || "Sohbet";
 
     for (const msg of conv.messages) {
-      appendMessage(msg.role, msg.text, msg.charts, "", msg.downloads, msg.usage);
+      appendMessage(msg.role, msg.text, msg.charts, "", msg.downloads, msg.usage, msg.confirmations);
     }
     renderChatList();
   }
 
-  function saveMessage(role, text, charts = [], tools = [], downloads = [], usage = null) {
+  function saveMessage(role, text, charts = [], tools = [], downloads = [], usage = null, confirmations = []) {
     if (!conversations[currentConversationId]) {
       conversations[currentConversationId] = { title: "Yeni Sohbet", messages: [], created: Date.now() };
     }
-    conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, usage, time: Date.now() });
+    conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, usage, confirmations, time: Date.now() });
     localStorage.setItem("inscada_chats", JSON.stringify(conversations));
     renderChatList();
   }
@@ -443,6 +462,40 @@
     div.textContent = text;
     return div.innerHTML;
   }
+
+  // Global: SCADA action confirmation
+  window.confirmAction = async function (actionId, approved) {
+    const container = document.querySelector(`.confirm-action[data-action-id="${actionId}"]`);
+    if (!container) return;
+    const btns = container.querySelector(".confirm-btns");
+    if (btns) btns.innerHTML = `<span style="color:var(--text-muted);font-size:12px;">${approved ? "İşleniyor..." : "İptal ediliyor..."}</span>`;
+    try {
+      const res = await fetch("/api/confirm-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId, approved }),
+      });
+      const data = await res.json();
+      const resultEl = document.createElement("div");
+      resultEl.style.cssText = "margin-top:8px;padding:8px;border-radius:4px;font-size:12px;";
+      if (!approved) {
+        resultEl.style.background = "rgba(239,68,68,0.1)";
+        resultEl.style.color = "#ef4444";
+        resultEl.textContent = "İşlem iptal edildi.";
+      } else if (data.error) {
+        resultEl.style.background = "rgba(239,68,68,0.1)";
+        resultEl.style.color = "#ef4444";
+        resultEl.textContent = `Hata: ${data.error}`;
+      } else {
+        resultEl.style.background = "rgba(16,185,129,0.1)";
+        resultEl.style.color = "#10b981";
+        resultEl.textContent = `İşlem başarılı: ${JSON.stringify(data.result).substring(0, 200)}`;
+      }
+      if (btns) btns.replaceWith(resultEl);
+    } catch (err) {
+      if (btns) btns.innerHTML = `<span style="color:#ef4444;font-size:12px;">Bağlantı hatası: ${escapeHtml(err.message)}</span>`;
+    }
+  };
 
   // Global: Code copy
   window.copyCode = function (btn) {

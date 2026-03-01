@@ -29,6 +29,10 @@ app.use(express.static(path.join(__dirname, "public"), { etag: false, maxAge: 0 
 // Konuşma geçmişi (memory - basit in-memory)
 const conversations = new Map();
 
+// SCADA yazma işlemleri için onay mekanizması
+const DANGEROUS_TOOLS = new Set(["inscada_set_value", "inscada_run_script"]);
+const pendingActions = new Map(); // actionId → { tool, input }
+
 const SYSTEM_PROMPT = `Sen inSCADA platformunun AI asistanısın. Kullanıcılara SCADA projeleri, scriptler ve endüstriyel veri analizi konusunda yardım ediyorsun.
 
 Yeteneklerin:
@@ -80,6 +84,7 @@ async function chat(conversationId, userMessage) {
   const toolResults = []; // İşlenen tool'ları takip et
   const chartDataList = []; // Chart verilerini topla
   const downloadList = []; // Download verilerini topla
+  const confirmationList = []; // Onay bekleyen aksiyonları topla
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let response;
@@ -115,7 +120,20 @@ async function chat(conversationId, userMessage) {
 
         let result;
         try {
-          result = await executeTool(block.name, block.input);
+          // Tehlikeli tool'ları yakala, onay iste
+          if (DANGEROUS_TOOLS.has(block.name)) {
+            const actionId = `action_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+            pendingActions.set(actionId, { tool: block.name, input: block.input });
+            result = {
+              pending_confirmation: true,
+              action_id: actionId,
+              tool: block.name,
+              input: block.input,
+              message: `Bu işlem gerçek ekipmana komut gönderecek. Onay gerekiyor.`
+            };
+          } else {
+            result = await executeTool(block.name, block.input);
+          }
 
           // Chart data'yı topla
           if (result && result.__chart) {
@@ -125,6 +143,11 @@ async function chat(conversationId, userMessage) {
           // Download data'yı topla
           if (result && result.__download) {
             downloadList.push(result);
+          }
+
+          // Onay bekleyen aksiyonu topla
+          if (result && result.pending_confirmation) {
+            confirmationList.push(result);
           }
 
           toolResults.push({
@@ -171,6 +194,7 @@ async function chat(conversationId, userMessage) {
     text,
     charts: chartDataList,
     downloads: downloadList,
+    confirmations: confirmationList,
     tools_used: toolResults.map(t => ({ tool: t.tool, success: t.success })),
     usage: {
       input_tokens: totalInputTokens,
@@ -228,6 +252,21 @@ app.get("/api/live-value", async (req, res) => {
   }
 });
 
+// SCADA yazma işlemi onay endpoint'i
+app.post("/api/confirm-action", async (req, res) => {
+  const { actionId, approved } = req.body;
+  const action = pendingActions.get(actionId);
+  if (!action) return res.status(404).json({ error: "Aksiyon bulunamadı veya süresi doldu." });
+  pendingActions.delete(actionId);
+  if (!approved) return res.json({ result: { cancelled: true, message: "İşlem kullanıcı tarafından iptal edildi." } });
+  try {
+    const result = await executeTool(action.tool, action.input);
+    res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", tools: TOOLS.length, uptime: process.uptime() });
@@ -236,12 +275,19 @@ app.get("/api/health", (req, res) => {
 // Download endpoint - Excel dosyalarını serve et
 app.get("/api/downloads/:filename", (req, res) => {
   const filename = req.params.filename;
-  // Path traversal koruması
-  if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+  const downloadsDir = path.join(os.tmpdir(), "inscada-downloads");
+  const filePath = path.resolve(downloadsDir, filename);
+
+  // Containment: çözülen yol downloads dizininde olmalı
+  if (!filePath.startsWith(downloadsDir + path.sep) && filePath !== downloadsDir) {
     return res.status(400).json({ error: "Geçersiz dosya adı" });
   }
-  const downloadsDir = path.join(os.tmpdir(), "inscada-downloads");
-  const filePath = path.join(downloadsDir, filename);
+
+  // Dosya adı formatı kontrolü (ek güvenlik)
+  if (!/^[a-zA-Z0-9_\-]+_\d+\.xlsx$/.test(filename)) {
+    return res.status(400).json({ error: "Geçersiz dosya formatı" });
+  }
+
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "Dosya bulunamadı" });
   }
@@ -253,10 +299,10 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "127.0.0.1", () => {
   console.log(`\n  ╔══════════════════════════════════════╗`);
   console.log(`  ║   inSCADA AI Chat v1.0               ║`);
-  console.log(`  ║   http://localhost:${PORT}              ║`);
+  console.log(`  ║   http://127.0.0.1:${PORT}             ║`);
   console.log(`  ║   Tools: ${TOOLS.length} (PG+Influx+Chart+API) ║`);
   console.log(`  ╚══════════════════════════════════════╝\n`);
 });

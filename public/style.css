@@ -743,6 +743,79 @@ body.electron-app #app { height: calc(100vh - 33px); }
   background: var(--accent-active);
 }
 
+/* ============ SCADA Confirmation Box ============ */
+.confirm-action {
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fef3c7;
+  margin: 8px 0;
+}
+
+.confirm-header {
+  font-size: 13px;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+
+.confirm-params {
+  background: rgba(0,0,0,0.05);
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 11px;
+  margin: 6px 0;
+  overflow-x: auto;
+  border: none;
+}
+
+.confirm-params code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #92400e;
+}
+
+.confirm-message {
+  font-size: 12px;
+  color: #b45309;
+  margin: 6px 0;
+}
+
+.confirm-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.confirm-btns .btn-approve {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.confirm-btns .btn-approve:hover { background: #059669; }
+
+.confirm-btns .btn-deny {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.confirm-btns .btn-deny:hover { background: #dc2626; }
+
 /* ============ Gauge Auto-Refresh ============ */
 .gauge-stop-btn {
   position: absolute;
