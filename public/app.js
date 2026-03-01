@@ -21,7 +21,7 @@
   let currentConversationId = generateId();
   let conversations = JSON.parse(localStorage.getItem("inscada_chats") || "{}");
   let isLoading = false;
-  let sessionTokens = { input: 0, output: 0 };
+  let sessionTokens = { input: 0, output: 0, contextWindow: 200000 };
 
   // Gauge auto-refresh state
   const chartInstances = new Map();   // containerId -> Chart instance
@@ -191,9 +191,10 @@
       saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads, data.usage);
 
       // Token sayacını güncelle
-      if (data.usage) {
+      if (data.usage && data.usage.total_tokens) {
         sessionTokens.input += data.usage.input_tokens || 0;
         sessionTokens.output += data.usage.output_tokens || 0;
+        sessionTokens.contextWindow = data.usage.context_window || 200000;
         updateTokenFooter();
       }
 
@@ -276,7 +277,9 @@
 
     let tokenHtml = "";
     if (role === "assistant" && usage && usage.total_tokens) {
-      tokenHtml = `<div class="token-info">${formatTokens(usage.input_tokens)} in · ${formatTokens(usage.output_tokens)} out</div>`;
+      const ctxWindow = usage.context_window || 200000;
+      const remaining = Math.max(0, ctxWindow - (usage.input_tokens || 0));
+      tokenHtml = `<div class="token-info">Giriş: ${formatTokens(usage.input_tokens)} · Yanıt: ${formatTokens(usage.output_tokens)} · Kalan: ${formatTokens(remaining)}</div>`;
     }
 
     msgEl.innerHTML = `
@@ -318,7 +321,7 @@
 
   function newChat() {
     stopAllGaugeRefreshes();
-    sessionTokens = { input: 0, output: 0 };
+    sessionTokens = { input: 0, output: 0, contextWindow: 200000 };
     updateTokenFooter();
     currentConversationId = generateId();
     messagesEl.innerHTML = `
@@ -423,8 +426,12 @@
 
   function updateTokenFooter() {
     const total = sessionTokens.input + sessionTokens.output;
+    const ctxWindow = sessionTokens.contextWindow || 200000;
+    const remaining = Math.max(0, ctxWindow - sessionTokens.input);
     const el = document.getElementById("sessionTokens");
-    if (el) el.textContent = `${formatTokens(total)} token`;
+    if (el) {
+      el.textContent = `Oturum: ${formatTokens(total)} · Kalan: ${formatTokens(remaining)}`;
+    }
   }
 
   function generateId() {

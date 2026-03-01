@@ -21,7 +21,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Middleware
 app.use(express.json({ limit: "10mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), { etag: false, maxAge: 0 }));
 
 // Chart dosyalarını serve et - artık gerekli değil ama ileride eklenebilir
 // app.use("/charts", express.static(...));
@@ -176,6 +176,7 @@ async function chat(conversationId, userMessage) {
       input_tokens: totalInputTokens,
       output_tokens: totalOutputTokens,
       total_tokens: totalInputTokens + totalOutputTokens,
+      context_window: 200000,
     },
   };
 }
