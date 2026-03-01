@@ -325,6 +325,45 @@ tool handler return → {__download: true, ...}
   → frontend: downloads + confirmations dizileri render edilir
 ```
 
+## Tool Öncelik Kuralları (SYSTEM_PROMPT)
+Claude'un gereksiz tool çağrıları yapmasını engellemek için SYSTEM_PROMPT'a eklenen kurallar:
+
+| İstek | Kullanılacak Tool | run_query/influx_query DEĞİL |
+|-------|-------------------|------------------------------|
+| Space listesi | `list_spaces` | - |
+| Proje listesi | `list_projects` | - |
+| Script listesi | `list_scripts` | - |
+| Script içeriği | `get_script` | - |
+| Script arama | `search_in_scripts` | - |
+
+- `run_query` sadece hazır tool'ların karşılamadığı özel SQL sorguları için, DAİMA `inscada.` şemasıyla
+- `information_schema` / `pg_tables` sorguları yasaklandı (schema zaten SYSTEM_PROMPT'ta)
+- `influx_query` sadece hazır tool'lar (`influx_stats`, `chart_*`) yetersiz kaldığında
+- Tek tool yeterliyse birden fazla tool çağrılmaz
+
+## Performans Loglama
+`server.js` → `chat()` fonksiyonunda üç seviye log:
+
+| Log | Format | Açıklama |
+|-----|--------|----------|
+| `[API]` | `Claude yanıt {ms}ms (in:{tokens} out:{tokens})` | Her Claude API roundtrip süresi + token |
+| `[Tool]` | `{tool_name} {ms}ms ({params})` | Her tool çağrısının süresi + parametreleri |
+| `[Chat]` | `Toplam {ms}ms, {n} tur, {n} tool` | İstek başına toplam süre özeti |
+
+### Değişkenler
+- `chatStart` — fonksiyon başında `Date.now()`, return öncesi toplam süre hesaplanır
+- `loopCount` — while döngüsünde her turda artırılır (1 tur = 1 API çağrısı)
+- `apiStart` / `apiMs` — `anthropic.messages.create()` öncesi/sonrası
+- `toolStart` / `toolMs` — `executeTool()` öncesi/sonrası
+
+### Örnek Konsol Çıktısı
+```
+[API] Claude yanıt 1956ms (in:8027 out:36)
+[Tool] list_projects 86ms ({})
+[API] Claude yanıt 5261ms (in:8110 out:169)
+[Chat] Toplam 7305ms, 2 tur, 1 tool
+```
+
 ## Security (IEC 62443)
 
 ### Network Binding

@@ -65,7 +65,19 @@ Excel kuralları:
 - Kullanıcı "excel olarak ver", "excel'e aktar", "xlsx indir", "dosya olarak ver" gibi isteklerde MUTLAKA önce ilgili veriyi çek (run_query, influx_query, list_spaces vb.), sonra export_excel tool'unu çağır.
 - Veriyi sheets formatına dönüştür: her sheet için {name, headers, rows}. headers sütun başlıkları (string dizisi), rows ise 2D dizi (her satır bir array).
 - file_name açıklayıcı olsun (Örn: "space_listesi", "proje_degiskenleri", "alarm_raporu").
-- Birden fazla veri seti varsa her birini ayrı sheet'e koy.`;
+- Birden fazla veri seti varsa her birini ayrı sheet'e koy.
+
+Tool öncelik kuralları:
+- Space listesi → list_spaces kullan
+- Proje listesi → list_projects kullan
+- Script listesi → list_scripts kullan
+- Script içeriği → get_script kullan
+- Script arama → search_in_scripts kullan
+- run_query'yi SADECE yukarıdaki tool'ların karşılamadığı özel SQL sorguları için kullan
+- run_query kullanırken tablo adlarında DAİMA inscada şemasını kullan (inscada.project, inscada.script, inscada.variable vb.)
+- ASLA information_schema veya pg_tables sorgusu yapma — tablo yapısı zaten sana verildi
+- influx_query'yi SADECE hazır tool'ların (influx_stats, chart_line, chart_bar vb.) karşılamadığı sorgular için kullan
+- Tek bir tool yeterliyse birden fazla tool çağırma`;
 
 /**
  * Claude API ile tool_use döngüsü
@@ -81,17 +93,21 @@ async function chat(conversationId, userMessage) {
   // Kullanıcı mesajını ekle
   messages.push({ role: "user", content: userMessage });
 
+  const chatStart = Date.now();
   const toolResults = []; // İşlenen tool'ları takip et
   const chartDataList = []; // Chart verilerini topla
   const downloadList = []; // Download verilerini topla
   const confirmationList = []; // Onay bekleyen aksiyonları topla
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let loopCount = 0;
   let response;
   let currentMessages = [...messages];
 
   // Tool use döngüsü - Claude tool çağırdıkça devam et
   while (true) {
+    loopCount++;
+    const apiStart = Date.now();
     response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
@@ -99,6 +115,8 @@ async function chat(conversationId, userMessage) {
       tools: TOOLS,
       messages: currentMessages,
     });
+    const apiMs = Date.now() - apiStart;
+    console.log(`[API] Claude yanıt ${apiMs}ms (in:${response.usage?.input_tokens} out:${response.usage?.output_tokens})`);
 
     // Token kullanımını topla
     if (response.usage) {
@@ -116,8 +134,6 @@ async function chat(conversationId, userMessage) {
     const toolResultContents = [];
     for (const block of assistantContent) {
       if (block.type === "tool_use") {
-        console.log(`[Tool] ${block.name}(${JSON.stringify(block.input).substring(0, 200)})`);
-
         let result;
         try {
           // Tehlikeli tool'ları yakala, onay iste
@@ -131,8 +147,12 @@ async function chat(conversationId, userMessage) {
               input: block.input,
               message: `Bu işlem gerçek ekipmana komut gönderecek. Onay gerekiyor.`
             };
+            console.log(`[Tool] ${block.name}(${JSON.stringify(block.input).substring(0, 200)}) → onay bekliyor`);
           } else {
+            const toolStart = Date.now();
             result = await executeTool(block.name, block.input);
+            const toolMs = Date.now() - toolStart;
+            console.log(`[Tool] ${block.name} ${toolMs}ms (${JSON.stringify(block.input).substring(0, 200)})`);
           }
 
           // Chart data'yı topla
@@ -189,6 +209,8 @@ async function chat(conversationId, userMessage) {
     const trimmed = messages.slice(-40);
     conversations.set(conversationId, trimmed);
   }
+
+  console.log(`[Chat] Toplam ${Date.now() - chatStart}ms, ${loopCount} tur, ${toolResults.length} tool`);
 
   return {
     text,
