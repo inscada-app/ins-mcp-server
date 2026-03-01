@@ -200,7 +200,7 @@ Base URL: `INSCADA_API_URL` (default: `http://localhost:8081`).
 - **variableIds**: `explode` parametresi — birden fazla ID için `variableIds=1&variableIds=2` formatında gönderilir (virgülle değil).
 - **Fired alarms**: `project_id` verilirse `/fired-alarms/monitor` endpoint'i kullanılır (daha güvenilir). Verilmezse `/fired-alarms` ile sayfalı sorgu yapılır.
 - **X-Space header**: Tüm isteklerde `X-Space: default_space` gönderilir. Multi-space ortamlarda bu değer değiştirilmeli.
-- **set_value güvenliği**: `SYSTEM_PROMPT`'ta kullanıcıdan onay alınması kuralı var — gerçek SCADA ekipmanına komut gönderir.
+- **set_value güvenliği**: Sunucu tarafında 2 aşamalı onay mekanizması — `inscada_set_value` ve `inscada_run_script` doğrudan çalıştırılmaz, kullanıcıdan UI üzerinden onay alınır (bkz. Security bölümü).
 
 ### Live vs Historical Data
 - **Canlı (anlık) değerler**: `inscada_get_live_value` / `inscada_get_live_values` (REST API)
@@ -306,23 +306,67 @@ User: "excel olarak ver"
 - Sütun genişlikleri: header ve veri uzunluğuna göre otomatik ayarlanır (max 50 karakter)
 
 ### Download Endpoint
-- `GET /api/downloads/:filename` — path traversal korumalı (`..`, `/`, `\` reddedilir)
+- `GET /api/downloads/:filename` — `path.resolve()` containment + regex format kontrolü (bkz. Security bölümü)
 - `res.download()` ile dosya serve edilir
 
 ### Frontend Render (app.js)
-- `appendMessage(role, text, charts, toolsHtml, downloads)` — downloads parametresi eklendi
-- `saveMessage(role, text, charts, tools, downloads)` — localStorage'a downloads kaydedilir
-- `loadConversation()` — `msg.downloads` geçirilir (sohbet geçmişinde butonlar korunur)
+- `appendMessage(role, text, charts, toolsHtml, downloads, usage, confirmations)` — downloads + confirmations parametreleri
+- `saveMessage(role, text, charts, tools, downloads, usage, confirmations)` — localStorage'a kaydedilir
+- `loadConversation()` — `msg.downloads` ve `msg.confirmations` geçirilir
 - Download butonu: `.download-container` içinde SVG dosya ikonu + dosya adı + meta bilgi + "İndir" butonu
+- Onay kutusu: `.confirm-action` içinde tool adı + parametreler + Onayla/İptal butonları
 
 ### __download Pattern
 `__chart` pattern'inin aynısı:
 ```
 tool handler return → {__download: true, ...}
   → server.js chat() içinde result.__download tespiti → downloadList'e eklenir
-  → response: {text, charts, downloads, tools_used}
-  → frontend: downloads dizisi render edilir
+  → response: {text, charts, downloads, confirmations, tools_used}
+  → frontend: downloads + confirmations dizileri render edilir
 ```
+
+## Security (IEC 62443)
+
+### Network Binding
+- Express `127.0.0.1`'e bind edilir (`server.js`) — sadece localhost erişimi, ağdan erişim engellenir
+- Electron-only kullanım, authentication yok
+
+### SQL Injection Koruması (run_query)
+- Sadece `SELECT` / `WITH` ile başlayan sorgular izinli
+- Noktalı virgül (`;`) ile çoklu sorgu engeli
+- SQL yorumları (`--`, `/*`) engeli
+- Tehlikeli keyword'ler regex word-boundary (`\b`) ile tespit: INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE, EXECUTE, EXEC
+
+### InfluxQL Injection Koruması
+Üç sanitizasyon fonksiyonu (`tool-handlers.js`):
+- `sanitizeInflux(input)` — where_clause gibi serbest metin alanlarında `;`, `DROP`, `DELETE`, `CREATE`, `ALTER`, `GRANT`, `INTO` engeller
+- `sanitizeInfluxIdentifier(name)` — measurement, field, tag adlarında sadece `[a-zA-Z0-9_-]` izinli
+- `sanitizeInfluxTimeRange(range)` — zaman aralığında sadece `\d+[smhdw]` formatı izinli
+
+Uygulanan handler'lar: `rpFrom()`, `influx_stats`, `influx_query`, `influx_show_tag_values`, `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi`, `chart_forecast`
+
+### SCADA Yazma Onay Mekanizması
+Tehlikeli tool'lar (`inscada_set_value`, `inscada_run_script`) sunucu tarafında engellenir:
+```
+Claude tool çağrısı → DANGEROUS_TOOLS kontrolü → hemen çalıştırılmaz
+  → pendingActions Map'e kaydedilir (actionId → {tool, input})
+  → Frontend'e pending_confirmation objesi döner
+  → Kullanıcı onay kutusunda Onayla/İptal seçer
+  → POST /api/confirm-action → onaylanırsa executeTool çalışır
+```
+- `DANGEROUS_TOOLS`: `Set(["inscada_set_value", "inscada_run_script"])`
+- `pendingActions`: `Map<actionId, {tool, input}>` — in-memory, sunucu restart ile sıfırlanır
+- Endpoint: `POST /api/confirm-action` — `{actionId, approved}` body ile çağrılır
+- Frontend: `.confirm-action` kutusu (sarı uyarı rengi), Onayla (yeşil) / İptal (kırmızı) butonları
+
+### XSS Koruması
+- **DOMPurify** (CDN: `purify.min.js` v3.0.9) — `marked.parse()` çıktısı `DOMPurify.sanitize()` ile temizlenir
+- Tool adları `escapeHtml()` ile escape edilir (tool göstergelerinde)
+
+### Path Traversal Koruması (Download Endpoint)
+- `path.resolve()` ile containment kontrolü — çözülen yol `downloadsDir` içinde olmalı
+- Dosya adı format regex: `/^[a-zA-Z0-9_\-]+_\d+\.xlsx$/`
+- URL encoding (`%2e%2e`) bypass'ı engellenir
 
 ## Common Query Patterns
 - Join variable to project: `variable v JOIN project p ON v.project_id = p.project_id`
