@@ -635,12 +635,31 @@ body.electron-app #app { height: calc(100vh - 33px); }
 .input-footer {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 12px;
   margin-top: 8px;
 }
 
 .powered-by {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.session-tokens {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 1px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+}
+
+/* Token info per message */
+.token-info {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--bg-tertiary);
 }
 
 /* ============ Scrollbar ============ */

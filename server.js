@@ -80,6 +80,8 @@ async function chat(conversationId, userMessage) {
   const toolResults = []; // İşlenen tool'ları takip et
   const chartDataList = []; // Chart verilerini topla
   const downloadList = []; // Download verilerini topla
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
   let response;
   let currentMessages = [...messages];
 
@@ -92,6 +94,12 @@ async function chat(conversationId, userMessage) {
       tools: TOOLS,
       messages: currentMessages,
     });
+
+    // Token kullanımını topla
+    if (response.usage) {
+      totalInputTokens += response.usage.input_tokens || 0;
+      totalOutputTokens += response.usage.output_tokens || 0;
+    }
 
     // Tool use yoksa döngüden çık
     if (response.stop_reason !== "tool_use") break;
@@ -164,6 +172,11 @@ async function chat(conversationId, userMessage) {
     charts: chartDataList,
     downloads: downloadList,
     tools_used: toolResults.map(t => ({ tool: t.tool, success: t.success })),
+    usage: {
+      input_tokens: totalInputTokens,
+      output_tokens: totalOutputTokens,
+      total_tokens: totalInputTokens + totalOutputTokens,
+    },
   };
 }
 

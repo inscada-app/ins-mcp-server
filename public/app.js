@@ -21,6 +21,7 @@
   let currentConversationId = generateId();
   let conversations = JSON.parse(localStorage.getItem("inscada_chats") || "{}");
   let isLoading = false;
+  let sessionTokens = { input: 0, output: 0 };
 
   // Gauge auto-refresh state
   const chartInstances = new Map();   // containerId -> Chart instance
@@ -186,8 +187,15 @@
       }
 
       // Yanıtı göster
-      appendMessage("assistant", data.text, data.charts, toolsHtml, data.downloads);
-      saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads);
+      appendMessage("assistant", data.text, data.charts, toolsHtml, data.downloads, data.usage);
+      saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads, data.usage);
+
+      // Token sayacını güncelle
+      if (data.usage) {
+        sessionTokens.input += data.usage.input_tokens || 0;
+        sessionTokens.output += data.usage.output_tokens || 0;
+        updateTokenFooter();
+      }
 
       // Chat başlığını güncelle
       updateChatTitle(text);
@@ -201,7 +209,7 @@
     inputEl.focus();
   }
 
-  function appendMessage(role, text, charts = [], toolsHtml = "", downloads = []) {
+  function appendMessage(role, text, charts = [], toolsHtml = "", downloads = [], usage = null) {
     const msgEl = document.createElement("div");
     msgEl.className = `message ${role}`;
 
@@ -266,9 +274,14 @@
       contentHtml = escapeHtml(text).replace(/\n/g, "<br>");
     }
 
+    let tokenHtml = "";
+    if (role === "assistant" && usage && usage.total_tokens) {
+      tokenHtml = `<div class="token-info">${formatTokens(usage.input_tokens)} in · ${formatTokens(usage.output_tokens)} out</div>`;
+    }
+
     msgEl.innerHTML = `
       <div class="message-avatar">${avatar}</div>
-      <div class="message-content">${contentHtml}</div>
+      <div class="message-content">${contentHtml}${tokenHtml}</div>
     `;
 
     messagesEl.appendChild(msgEl);
@@ -305,6 +318,8 @@
 
   function newChat() {
     stopAllGaugeRefreshes();
+    sessionTokens = { input: 0, output: 0 };
+    updateTokenFooter();
     currentConversationId = generateId();
     messagesEl.innerHTML = `
       <div class="welcome-message">
@@ -356,16 +371,16 @@
     chatTitle.textContent = conv.title || "Sohbet";
 
     for (const msg of conv.messages) {
-      appendMessage(msg.role, msg.text, msg.charts, "", msg.downloads);
+      appendMessage(msg.role, msg.text, msg.charts, "", msg.downloads, msg.usage);
     }
     renderChatList();
   }
 
-  function saveMessage(role, text, charts = [], tools = [], downloads = []) {
+  function saveMessage(role, text, charts = [], tools = [], downloads = [], usage = null) {
     if (!conversations[currentConversationId]) {
       conversations[currentConversationId] = { title: "Yeni Sohbet", messages: [], created: Date.now() };
     }
-    conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, time: Date.now() });
+    conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, usage, time: Date.now() });
     localStorage.setItem("inscada_chats", JSON.stringify(conversations));
     renderChatList();
   }
@@ -398,6 +413,19 @@
   }
 
   // ============ Utils ============
+
+  function formatTokens(n) {
+    if (!n) return "0";
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+    if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+    return String(n);
+  }
+
+  function updateTokenFooter() {
+    const total = sessionTokens.input + sessionTokens.output;
+    const el = document.getElementById("sessionTokens");
+    if (el) el.textContent = `${formatTokens(total)} token`;
+  }
 
   function generateId() {
     return "chat_" + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
