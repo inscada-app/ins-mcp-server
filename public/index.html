@@ -10,6 +10,28 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Electron Custom Title Bar -->
+  <div id="titleBar" style="display:none;">
+    <div class="tb-drag">
+      <svg class="tb-logo" width="16" height="16" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="6" fill="#1CA1C1"/>
+        <text x="14" y="19" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" font-family="sans-serif">iS</text>
+      </svg>
+      <span class="tb-title">inSCADA Chat</span>
+    </div>
+    <div class="tb-controls">
+      <button id="tbMin" class="tb-btn" title="Minimize">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button id="tbMax" class="tb-btn" title="Maximize">
+        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+      </button>
+      <button id="tbClose" class="tb-btn tb-close" title="Close">
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+
   <div id="app">
     <!-- Sidebar -->
     <aside id="sidebar">

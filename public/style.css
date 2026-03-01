@@ -39,6 +39,64 @@ body {
   overflow: hidden;
 }
 
+/* ============ Custom Title Bar (Electron) ============ */
+#titleBar {
+  height: 32px;
+  background: #F4F5F9;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tb-drag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+}
+
+.tb-logo { flex-shrink: 0; }
+
+.tb-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.tb-controls {
+  display: flex;
+  -webkit-app-region: no-drag;
+}
+
+.tb-btn {
+  width: 46px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tb-btn:hover {
+  background: var(--bg-hover);
+}
+
+.tb-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+body.electron-app #titleBar { display: flex !important; }
+body.electron-app #app { height: calc(100vh - 33px); }
+
 #app {
   display: flex;
   height: 100vh;

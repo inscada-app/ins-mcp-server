@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>inSCADA Chat — Ayarlar</title>
+  <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F4F5F9;
+      --bg-tertiary: #EBEDF0;
+      --text-primary: #475466;
+      --text-secondary: #657584;
+      --text-muted: #94A1B3;
+      --accent: #1CA1C1;
+      --accent-hover: #1992af;
+      --border: #DADEE0;
+      --error: #FF5C4C;
+      --success: #55CD97;
+      --radius-sm: 2px;
+      --radius-md: 4px;
+      --shadow: 0 1px 4px rgba(0,0,0,0.08);
+      --font-sans: 'PT Sans', 'Inter', -apple-system, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      overflow-y: auto;
+    }
+
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 24px 20px 32px;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h1 .logo {
+      width: 24px;
+      height: 24px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .group {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .group-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--bg-tertiary);
+    }
+
+    .field {
+      margin-bottom: 10px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"] {
+      width: 100%;
+      padding: 7px 10px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .row .field {
+      flex: 1;
+    }
+
+    .checkbox-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .checkbox-field input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+    }
+
+    .checkbox-field label {
+      margin-bottom: 0;
+      font-weight: 400;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    .btn {
+      padding: 8px 24px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--border);
+    }
+
+    .msg {
+      font-size: 12px;
+      margin-top: 8px;
+      text-align: right;
+    }
+
+    .msg.success { color: var(--success); }
+    .msg.error { color: var(--error); }
+
+    /* Test connection button */
+    .test-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--bg-tertiary);
+    }
+
+    .btn-test {
+      padding: 5px 14px;
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-test:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-test:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .test-result {
+      font-size: 12px;
+      flex: 1;
+    }
+
+    .test-result.ok { color: var(--success); }
+    .test-result.fail { color: var(--error); }
+    .test-result.loading { color: var(--text-muted); }
+
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><span class="logo">iS</span> inSCADA Chat — Ayarlar</h1>
+
+    <!-- Claude API -->
+    <div class="group">
+      <div class="group-title">Claude API</div>
+      <div class="field">
+        <label>API Key</label>
+        <input type="password" id="anthropicApiKey" placeholder="sk-ant-...">
+      </div>
+    </div>
+
+    <!-- PostgreSQL -->
+    <div class="group">
+      <div class="group-title">PostgreSQL</div>
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label>Host</label>
+          <input type="text" id="dbHost" placeholder="localhost">
+        </div>
+        <div class="field" style="flex:1">
+          <label>Port</label>
+          <input type="number" id="dbPort" placeholder="5432">
+        </div>
+      </div>
+      <div class="field">
+        <label>Database</label>
+        <input type="text" id="dbName" placeholder="inscada">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>User</label>
+          <input type="text" id="dbUser" placeholder="postgres">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="dbPassword">
+        </div>
+      </div>
+      <div class="test-row">
+        <button class="btn-test" id="testPg">Bağlantıyı Test Et</button>
+        <span class="test-result" id="testPgResult"></span>
+      </div>
+    </div>
+
+    <!-- InfluxDB -->
+    <div class="group">
+      <div class="group-title">InfluxDB</div>
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label>Host</label>
+          <input type="text" id="influxHost" placeholder="localhost">
+        </div>
+        <div class="field" style="flex:1">
+          <label>Port</label>
+          <input type="number" id="influxPort" placeholder="8086">
+        </div>
+      </div>
+      <div class="field">
+        <label>Database</label>
+        <input type="text" id="influxDb" placeholder="inscada">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>User</label>
+          <input type="text" id="influxUser" placeholder="admin">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="influxPassword">
+        </div>
+      </div>
+      <div class="checkbox-field">
+        <input type="checkbox" id="influxUseSsl">
+        <label for="influxUseSsl">SSL kullan (HTTPS)</label>
+      </div>
+      <div class="test-row">
+        <button class="btn-test" id="testInflux">Bağlantıyı Test Et</button>
+        <span class="test-result" id="testInfluxResult"></span>
+      </div>
+    </div>
+
+    <!-- inSCADA REST API -->
+    <div class="group">
+      <div class="group-title">inSCADA REST API</div>
+      <div class="field">
+        <label>API URL</label>
+        <input type="text" id="inscadaApiUrl" placeholder="http://localhost:8081">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="inscadaUsername">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="inscadaPassword">
+        </div>
+      </div>
+      <div class="test-row">
+        <button class="btn-test" id="testApi">Bağlantıyı Test Et</button>
+        <span class="test-result" id="testApiResult"></span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" id="btnCancel">İptal</button>
+      <button class="btn btn-primary" id="btnSave">Kaydet</button>
+    </div>
+    <div class="msg" id="statusMsg"></div>
+  </div>
+
+  <script>
+    const FIELDS = [
+      "anthropicApiKey",
+      "dbHost", "dbPort", "dbName", "dbUser", "dbPassword",
+      "influxHost", "influxPort", "influxDb", "influxUser", "influxPassword", "influxUseSsl",
+      "inscadaApiUrl", "inscadaUsername", "inscadaPassword",
+    ];
+
+    const $msg = document.getElementById("statusMsg");
+    const $btnSave = document.getElementById("btnSave");
+    let isFirstRun = false;
+
+    // Mevcut ayarları yükle
+    window.addEventListener("DOMContentLoaded", async () => {
+      const settings = await window.electronAPI.getSettings();
+      isFirstRun = Object.keys(settings).length === 0;
+
+      for (const key of FIELDS) {
+        const el = document.getElementById(key);
+        if (!el) continue;
+        if (el.type === "checkbox") {
+          el.checked = !!settings[key];
+        } else {
+          el.value = settings[key] || "";
+        }
+      }
+
+      if (isFirstRun) {
+        document.getElementById("btnCancel").style.display = "none";
+      }
+    });
+
+    // Enter ile kaydet
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        $btnSave.click();
+      }
+    });
+
+    // Kaydet
+    $btnSave.addEventListener("click", async () => {
+      if ($btnSave.disabled) return;
+
+      const settings = {};
+      for (const key of FIELDS) {
+        const el = document.getElementById(key);
+        if (!el) continue;
+        if (el.type === "checkbox") {
+          settings[key] = el.checked;
+        } else if (el.type === "number") {
+          settings[key] = el.value ? Number(el.value) : "";
+        } else {
+          settings[key] = el.value.trim();
+        }
+      }
+
+      // API key zorunlu
+      if (!settings.anthropicApiKey) {
+        $msg.textContent = "Claude API Key zorunludur.";
+        $msg.className = "msg error";
+        return;
+      }
+
+      // Loading state
+      $btnSave.disabled = true;
+      const origText = $btnSave.textContent;
+      $btnSave.textContent = "Kaydediliyor...";
+
+      try {
+        if (isFirstRun) {
+          await window.electronAPI.firstRunStart(settings);
+        } else {
+          await window.electronAPI.saveSettings(settings);
+          $msg.textContent = "Kaydedildi. Değişikliklerin uygulanması için yeniden başlatılacak.";
+          $msg.className = "msg success";
+          setTimeout(() => window.electronAPI.requestRelaunch(), 1200);
+        }
+      } catch (err) {
+        $msg.textContent = "Hata: " + err.message;
+        $msg.className = "msg error";
+        $btnSave.disabled = false;
+        $btnSave.textContent = origText;
+      }
+    });
+
+    // İptal
+    document.getElementById("btnCancel").addEventListener("click", () => {
+      window.close();
+    });
+
+    // ── Test Connection Handlers ─────────────────────────────
+    function setTestResult(el, status, text) {
+      el.className = "test-result " + status;
+      if (status === "loading") {
+        el.innerHTML = '<span class="spinner"></span>' + text;
+      } else {
+        el.textContent = text;
+      }
+    }
+
+    // PostgreSQL
+    document.getElementById("testPg").addEventListener("click", async function () {
+      const btn = this;
+      const result = document.getElementById("testPgResult");
+      btn.disabled = true;
+      setTestResult(result, "loading", "Test ediliyor...");
+      try {
+        const res = await window.electronAPI.testPostgres({
+          host: document.getElementById("dbHost").value || "localhost",
+          port: document.getElementById("dbPort").value || "5432",
+          database: document.getElementById("dbName").value || "inscada",
+          user: document.getElementById("dbUser").value || "postgres",
+          password: document.getElementById("dbPassword").value || "",
+        });
+        if (res.success) {
+          setTestResult(result, "ok", "Bağlantı başarılı ✓");
+        } else {
+          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
+        }
+      } catch (err) {
+        setTestResult(result, "fail", "Hata: " + err.message);
+      }
+      btn.disabled = false;
+    });
+
+    // InfluxDB
+    document.getElementById("testInflux").addEventListener("click", async function () {
+      const btn = this;
+      const result = document.getElementById("testInfluxResult");
+      btn.disabled = true;
+      setTestResult(result, "loading", "Test ediliyor...");
+      try {
+        const res = await window.electronAPI.testInflux({
+          host: document.getElementById("influxHost").value || "localhost",
+          port: document.getElementById("influxPort").value || "8086",
+          useSsl: document.getElementById("influxUseSsl").checked,
+        });
+        if (res.success) {
+          setTestResult(result, "ok", "Bağlantı başarılı ✓");
+        } else {
+          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
+        }
+      } catch (err) {
+        setTestResult(result, "fail", "Hata: " + err.message);
+      }
+      btn.disabled = false;
+    });
+
+    // inSCADA REST API
+    document.getElementById("testApi").addEventListener("click", async function () {
+      const btn = this;
+      const result = document.getElementById("testApiResult");
+      btn.disabled = true;
+      setTestResult(result, "loading", "Test ediliyor...");
+      try {
+        const res = await window.electronAPI.testInscadaApi({
+          url: document.getElementById("inscadaApiUrl").value || "http://localhost:8081",
+        });
+        if (res.success) {
+          setTestResult(result, "ok", "Bağlantı başarılı ✓");
+        } else {
+          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
+        }
+      } catch (err) {
+        setTestResult(result, "fail", "Hata: " + err.message);
+      }
+      btn.disabled = false;
+    });
+  </script>
+</body>
+</html>

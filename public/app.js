@@ -58,6 +58,18 @@
   };
   marked.setOptions({ renderer });
 
+  // Electron detection & title bar
+  const isElectron = !!(window.electronAPI && window.electronAPI.minimizeWindow);
+  if (isElectron) {
+    document.body.classList.add("electron-app");
+    const tbMin = document.getElementById("tbMin");
+    const tbMax = document.getElementById("tbMax");
+    const tbClose = document.getElementById("tbClose");
+    if (tbMin) tbMin.addEventListener("click", () => window.electronAPI.minimizeWindow());
+    if (tbMax) tbMax.addEventListener("click", () => window.electronAPI.maximizeWindow());
+    if (tbClose) tbClose.addEventListener("click", () => window.electronAPI.closeWindow());
+  }
+
   // Init
   init();
 

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', 'PT Sans', sans-serif;
+      background: #FFFFFF;
+      color: #475466;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      user-select: none;
+      border: 1px solid #DADEE0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .logo {
+      width: 52px;
+      height: 52px;
+      background: #1CA1C1;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .app-name {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .version {
+      font-size: 13px;
+      color: #657584;
+      margin-bottom: 16px;
+    }
+    .info {
+      font-size: 11px;
+      color: #94A1B3;
+      text-align: center;
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+    .copyright {
+      font-size: 11px;
+      color: #94A1B3;
+      margin-bottom: 16px;
+    }
+    .close-btn {
+      padding: 6px 28px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #DADEE0;
+      border-radius: 2px;
+      background: #F4F5F9;
+      color: #475466;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .close-btn:hover { background: #EBEDF0; }
+  </style>
+</head>
+<body>
+  <div class="logo">iS</div>
+  <div class="app-name">inSCADA Chat</div>
+  <div class="version" id="appVersion">v1.0.0</div>
+  <div class="info" id="sysInfo">Loading...</div>
+  <div class="copyright">&copy; 2025 inSCADA</div>
+  <button class="close-btn" id="closeBtn">Kapat</button>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (window.electronAPI && window.electronAPI.getAppInfo) {
+        const info = await window.electronAPI.getAppInfo();
+        document.getElementById("appVersion").textContent = "v" + info.appVersion;
+        document.getElementById("sysInfo").innerHTML =
+          "Electron " + info.electronVersion + "<br>" +
+          "Node.js " + info.nodeVersion + "<br>" +
+          "Chrome " + info.chromeVersion;
+      }
+      document.getElementById("closeBtn").addEventListener("click", () => {
+        if (window.electronAPI && window.electronAPI.closeAbout) {
+          window.electronAPI.closeAbout();
+        } else {
+          window.close();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

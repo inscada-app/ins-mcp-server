@@ -22,6 +22,8 @@
       "tool-handlers.js",
       "mcp-server.mjs",
       "settings.html",
+      "splash.html",
+      "about.html",
       "public/**/*",
       "assets/**/*",
       "node_modules/**/*"
