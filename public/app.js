@@ -187,8 +187,8 @@
       }
 
       // Yanıtı göster
-      appendMessage("assistant", data.text, data.charts, toolsHtml, data.downloads, data.usage, data.confirmations);
-      saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads, data.usage, data.confirmations);
+      appendMessage("assistant", data.text, data.charts, toolsHtml, data.downloads, data.usage, data.confirmations, data.tables);
+      saveMessage("assistant", data.text, data.charts, data.tools_used, data.downloads, data.usage, data.confirmations, data.tables);
 
       // Token sayacını güncelle
       if (data.usage && data.usage.total_tokens) {
@@ -210,7 +210,7 @@
     inputEl.focus();
   }
 
-  function appendMessage(role, text, charts = [], toolsHtml = "", downloads = [], usage = null, confirmations = []) {
+  function appendMessage(role, text, charts = [], toolsHtml = "", downloads = [], usage = null, confirmations = [], tables = []) {
     const msgEl = document.createElement("div");
     msgEl.className = `message ${role}`;
 
@@ -238,6 +238,13 @@
             // Chart.js render'ı DOM'a eklendikten sonra çalışmalı
             setTimeout(() => window.renderChart(chartId, chart), 100);
           }
+        }
+      }
+
+      // Table bypass render
+      if (tables && tables.length) {
+        for (const tbl of tables) {
+          if (tbl.__table) contentHtml += renderTableHtml(tbl);
         }
       }
 
@@ -393,16 +400,16 @@
     chatTitle.textContent = conv.title || "Sohbet";
 
     for (const msg of conv.messages) {
-      appendMessage(msg.role, msg.text, msg.charts, "", msg.downloads, msg.usage, msg.confirmations);
+      appendMessage(msg.role, msg.text, msg.charts, "", msg.downloads, msg.usage, msg.confirmations, msg.tables);
     }
     renderChatList();
   }
 
-  function saveMessage(role, text, charts = [], tools = [], downloads = [], usage = null, confirmations = []) {
+  function saveMessage(role, text, charts = [], tools = [], downloads = [], usage = null, confirmations = [], tables = []) {
     if (!conversations[currentConversationId]) {
       conversations[currentConversationId] = { title: "Yeni Sohbet", messages: [], created: Date.now() };
     }
-    conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, usage, confirmations, time: Date.now() });
+    conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, usage, confirmations, tables, time: Date.now() });
     localStorage.setItem("inscada_chats", JSON.stringify(conversations));
     renderChatList();
   }
@@ -505,6 +512,93 @@
       setTimeout(() => (btn.textContent = "Kopyala"), 2000);
     });
   };
+
+  // ============ Table Bypass Rendering ============
+
+  function statusBadgeClass(val) {
+    if (val === null || val === undefined) return "";
+    const s = String(val).toLowerCase().trim();
+    if (["connected", "running", "on", "active", "true", "ok"].includes(s)) return "status-ok";
+    if (["disconnected", "off", "stopped", "false", "error", "fault"].includes(s)) return "status-err";
+    if (s.length > 0) return "status-warn";
+    return "";
+  }
+
+  function renderTableHtml(tbl) {
+    if (!tbl || !tbl.__table) return "";
+    const hint = tbl.display_hint || "table";
+    const title = escapeHtml(tbl.title || "");
+    const meta = tbl.meta || {};
+    let truncNote = "";
+    if (meta.truncated) {
+      truncNote = `<span class="bypass-table-trunc">${meta.row_count} / ${meta.total_rows} satırdan ilk ${meta.row_count} gösteriliyor</span>`;
+    }
+
+    let html = `<div class="bypass-table-container">`;
+    html += `<div class="bypass-table-header"><span class="bypass-table-title">${title}</span><span class="bypass-table-meta">${truncNote}</span></div>`;
+
+    if (hint === "key_value") {
+      html += `<div class="bypass-kv">`;
+      for (const row of (tbl.rows || [])) {
+        const key = escapeHtml(String(row[0] ?? ""));
+        const val = escapeHtml(String(row[1] ?? ""));
+        html += `<div class="bypass-kv-row"><div class="bypass-kv-key">${key}</div><div class="bypass-kv-val">${val}</div></div>`;
+      }
+      html += `</div>`;
+    } else if (hint === "status") {
+      html += `<div class="bypass-table-scroll"><table class="bypass-table"><thead><tr>`;
+      for (const col of (tbl.columns || [])) {
+        html += `<th>${escapeHtml(String(col))}</th>`;
+      }
+      html += `</tr></thead><tbody>`;
+      for (const row of (tbl.rows || [])) {
+        html += `<tr>`;
+        for (const cell of row) {
+          const cellStr = String(cell ?? "");
+          const badge = statusBadgeClass(cellStr);
+          if (badge) {
+            html += `<td><span class="status-badge ${badge}">${escapeHtml(cellStr)}</span></td>`;
+          } else {
+            html += `<td>${escapeHtml(cellStr)}</td>`;
+          }
+        }
+        html += `</tr>`;
+      }
+      html += `</tbody></table></div>`;
+    } else {
+      // Standard "table" hint
+      html += `<div class="bypass-table-scroll"><table class="bypass-table"><thead><tr>`;
+      for (const col of (tbl.columns || [])) {
+        html += `<th>${escapeHtml(String(col))}</th>`;
+      }
+      html += `</tr></thead><tbody>`;
+      for (const row of (tbl.rows || [])) {
+        html += `<tr>`;
+        for (const cell of row) {
+          html += `<td>${escapeHtml(String(cell ?? ""))}</td>`;
+        }
+        html += `</tr>`;
+      }
+      html += `</tbody></table></div>`;
+    }
+
+    // Code block (for get_script, get_custom_menu)
+    if (hint === "code" && tbl.code) {
+      const lang = tbl.code_language || "javascript";
+      let highlighted;
+      try {
+        highlighted = lang && hljs.getLanguage(lang)
+          ? hljs.highlight(tbl.code, { language: lang }).value
+          : hljs.highlightAuto(tbl.code).value;
+      } catch (e) {
+        highlighted = escapeHtml(tbl.code);
+      }
+      html += `<div class="code-block"><div class="code-header"><span>${escapeHtml(lang)}</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div><pre><code class="hljs language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
+    }
+
+    html += `</div>`;
+    return html;
+  }
 
   // ============ Chart Rendering (Chart.js) ============
 

@@ -816,6 +816,131 @@ body.electron-app #app { height: calc(100vh - 33px); }
 
 .confirm-btns .btn-deny:hover { background: #dc2626; }
 
+/* ============ Bypass Table ============ */
+.bypass-table-container {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+
+.bypass-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+}
+
+.bypass-table-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.bypass-table-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bypass-table-trunc {
+  font-size: 11px;
+  color: var(--warning);
+}
+
+.bypass-table-scroll {
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.bypass-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.bypass-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-tertiary);
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.bypass-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.bypass-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.bypass-kv {
+  padding: 8px 12px;
+}
+
+.bypass-kv-row {
+  display: flex;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bypass-kv-row:last-child {
+  border-bottom: none;
+}
+
+.bypass-kv-key {
+  flex: 0 0 140px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.bypass-kv-val {
+  flex: 1;
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status-ok {
+  background: rgba(85, 205, 151, 0.15);
+  color: #10b981;
+}
+
+.status-err {
+  background: rgba(255, 92, 76, 0.15);
+  color: #ef4444;
+}
+
+.status-warn {
+  background: rgba(253, 191, 76, 0.15);
+  color: #d97706;
+}
+
 /* ============ Gauge Auto-Refresh ============ */
 .gauge-stop-btn {
   position: absolute;

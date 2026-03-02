@@ -1,6 +1,6 @@
 {
   "name": "inscada-ai-asistan",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "inSCADA AI Asistan - Claude API + MCP Tools",
   "main": "electron-main.js",
   "scripts": {
@@ -20,7 +20,9 @@
       "server.js",
       "tools.js",
       "tool-handlers.js",
+      "telemetry.js",
       "mcp-server.mjs",
+      "license.html",
       "settings.html",
       "splash.html",
       "about.html",
@@ -35,8 +37,10 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico"
+      "uninstallerIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false
     }
   },
   "dependencies": {
