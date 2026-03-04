@@ -50,8 +50,6 @@ const server = new Server(
 
 let toolCount = 0;
 
-const DANGEROUS_TOOLS = new Set(["inscada_set_value", "inscada_run_script", "update_script"]);
-
 // tools/list — Mevcut tool tanımlarını MCP formatında döndür
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -66,18 +64,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // tools/call — Tool çağrısını mevcut handler'lara yönlendir
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-
-  if (DANGEROUS_TOOLS.has(name)) {
-    write("tool_call", { tool: name, success: "false", source: "mcp" }, {
-      duration_ms: 0,
-      params_preview: "BLOCKED: dangerous tool",
-    });
-    flush();
-    return {
-      content: [{ type: "text", text: `Güvenlik: "${name}" MCP üzerinden çalıştırılamaz. Bu işlem sadece inSCADA AI Asistan uygulamasından onay ile yapılabilir.` }],
-      isError: true,
-    };
-  }
 
   const start = Date.now();
   try {

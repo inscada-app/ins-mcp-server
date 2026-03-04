@@ -1622,9 +1622,10 @@ const handlers = {
 const INSCADA_GUIDE = `# inSCADA MCP Server — Rules & Best Practices
 
 ## 1. MCP Security
-- inscada_set_value, inscada_run_script, update_script are BLOCKED in MCP mode
-- These can only be executed through the inSCADA AI Assistant app with user confirmation
-- inscada_api: GET requests are free, POST/PUT/DELETE/PATCH require user approval
+- inscada_set_value: Writes to real equipment — confirm with user before calling
+- inscada_run_script: Executes server-side script — confirm with user before calling
+- update_script: Modifies script code — read current code with get_script first, show diff to user
+- inscada_api: GET requests are free, POST/PUT/DELETE/PATCH — confirm with user before calling
 
 ## 2. Script Writing Rules (CRITICAL)
 - Engine: Nashorn ECMAScript 5 (JDK11). DO NOT USE let/const, arrow functions (=>), template literals, destructuring, async/await, class. Only var, function, for, if/else, try/catch, switch, while.
