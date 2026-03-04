@@ -679,6 +679,14 @@ Animasyon oluşturma:
       required: ["path"],
     },
   },
+  {
+    name: "inscada_guide",
+    description: "IMPORTANT: Call this tool FIRST before using any other inSCADA tool in a new conversation. Returns comprehensive usage guide including: Nashorn script rules (ECMAScript 5), ins.* API reference (30+ methods), animation element types (27 types), chart rules, custom menu rules, live value endpoints, tool priorities, and best practices. Without this guide you will make errors.",
+    input_schema: {
+      type: "object",
+      properties: {},
+    },
+  },
 ];
 
 module.exports = TOOLS;

@@ -1613,7 +1613,167 @@ const handlers = {
     const result = await inscadaApi.request(method.toUpperCase(), resolvedPath, body || undefined);
     return result;
   },
+
+  async inscada_guide() {
+    return { guide: INSCADA_GUIDE };
+  },
 };
+
+const INSCADA_GUIDE = `# inSCADA MCP Server — Rules & Best Practices
+
+## 1. MCP Security
+- inscada_set_value, inscada_run_script, update_script are BLOCKED in MCP mode
+- These can only be executed through the inSCADA AI Assistant app with user confirmation
+- inscada_api: GET requests are free, POST/PUT/DELETE/PATCH require user approval
+
+## 2. Script Writing Rules (CRITICAL)
+- Engine: Nashorn ECMAScript 5 (JDK11). DO NOT USE let/const, arrow functions (=>), template literals, destructuring, async/await, class. Only var, function, for, if/else, try/catch, switch, while.
+- STRUCTURE: All script code MUST be wrapped in a function block:
+  function main() { /* code here */ }
+  main();
+- Global objects: ins (SCADA API), user, require(ins, "scriptName"), toJS(javaObj), fixJSONStr(str)
+- ins.* API:
+  Read: ins.getVariableValue(name) → {value, date, dateInMs}
+  Write: ins.setVariableValue(name, {value: N})
+  Bulk read: ins.getVariableValues(names[]) → {name: {value}, ...}
+  Toggle: ins.toggleVariableValue(name)
+  Connection: ins.getConnectionStatus(name), ins.startConnection(name), ins.stopConnection(name)
+  Alarm: ins.getAlarmStatus(name), ins.activateAlarmGroup(name), ins.deactivateAlarmGroup(name)
+  Alarm fired: ins.getLastFiredAlarms(index, count), ins.getAlarmLastFiredAlarms(includeOff)
+  Script: ins.executeScript(name), ins.getGlobalObject(name), ins.setGlobalObject(name, obj)
+  Log: ins.writeLog(type, activity, msg) — type: "INFO"/"WARN"/"ERROR"
+  Notify: ins.sendMail(users[], subject, content), ins.sendSMS(users[], message), ins.notify(type, title, msg)
+  Historical: ins.getLoggedVariableValuesByPage(names[], start, end, page, size)
+  Stats: ins.getLoggedVariableValueStats(names[], start, end)
+  Utility: ins.now(), ins.uuid(), ins.ping(addr, timeout), ins.rest(method, url, contentType, body)
+  SQL: ins.runSql(sql), ins.runSql(datasource, sql)
+  File: ins.writeToFile(name, text, append), ins.readFile(name)
+  System: ins.consoleLog(obj), ins.refreshAllClients()
+- Most methods have (projectName, ...) overloads. Without projectName, uses script's project.
+- Convert Java collections: var list = toJS(ins.getVariables())
+- Module import: var helper = require(ins, "HelperScript"); helper.myFunc();
+- Date: var now = ins.now(); var d = ins.getDate(epochMs); or new java.util.Date()
+- setVariableValue: {value: N} — only value key required
+- Live date: ins.getVariableValue().dateInMs is epoch ms
+- Historical date: dttm field is ISO 8601 string. Nashorn new Date(isoString) returns NaN! Use: var timeStr = ("" + items[i].dttm).substring(11, 19);
+
+## 3. Script Management — run vs schedule
+- POST /api/scripts/{id}/run → One-time execution (test/debug only)
+- POST /api/scripts/{id}/schedule → Periodic execution (production use)
+- POST /api/scripts/{id}/cancel → Stop scheduled script
+- RULE: Use schedule for simulation and periodic scripts, NOT run!
+- Bulk: POST /api/scripts/schedule?projectId=X (start all), /api/scripts/unschedule?projectId=X (stop all)
+- schType values: Periodic (ms interval), Cron, Once, Manual
+- POST /api/scripts requires: name, projectId, code (non-empty), schType, logFlag (boolean)
+- Before updating: read with get_script first, show before/after diff
+
+## 4. Tabulator & Chart Script Return Formats
+- Tabulator (type=Datatable): return {table: JSON.stringify({columns:[{title:"Name",field:"name"}],layout:"fitColumns"}), data:{0:{name:"X",value:1}}, initTime:null, runTime:null, runTimeFunc:"updateOrAddData"};
+- Chart (type=Chart): return {dataset:{0:{name,data,color,fill,step}},type:"line"|"bar",labels:[],xAxes:{0:{labels:[]}},options:{}};
+- Optimal points: chartWidthPx/3 (min50,max600). Logged data is reverse-ordered → reverse loop.
+
+## 5. Animation Creation
+- POST /api/animations body:{name,projectId,mainFlag:false,duration:2000,playOrder:1,svgContent:"<svg>...</svg>"}
+- Element: POST /api/animations/{animationId}/elements body:{animationId,domId,name,dsc:null,type,expressionType,expression,status:true,props}
+- Script binding: POST /api/animations/{animationId}/scripts body:{type:"animation",scriptId:ID}
+- CRITICAL: props must never be null (at least "{}"). SVG ids = domId. Cross-project: ins.getVariableValue('ProjectName','TagName')
+- SVG REQUIRED: <svg> must include: style="width:100%; height:100%;" viewBox="0 0 1920 1080" width="1920" height="1080"
+- Element types:
+  Get: type:"Get", expressionType:"EXPRESSION", props:"{}"
+  Color: type:"Color", expressionType:"SWITCH" — "#hex", "c1/c2"(blink), "c1/c2/gradient/horizontal"
+  Visibility: type:"Visibility", expressionType:"EXPRESSION", props:'{"inverse":false}'
+  Opacity: type:"Opacity", expressionType:"EXPRESSION", props:'{"min":0,"max":100}'
+  Bar: type:"Bar", expressionType:"EXPRESSION"|"TAG", props:'{"min":0,"max":100,"orientation":"Bottom","fillColor":"#04B3FF","duration":1,"opacity":1}'
+  Rotate: type:"Rotate", expressionType:"EXPRESSION", props:'{"min":0,"max":360,"offset":"mc"}'
+  Move: type:"Move", expressionType:"EXPRESSION" — value={orientation:"H"|"V",minVal,maxVal,minPos,maxPos,value}
+  Scale: type:"Scale", expressionType:"EXPRESSION", props:'{"min":0,"max":100,"horizontal":true,"vertical":true}'
+  Blink: type:"Blink", expressionType:"EXPRESSION", props:'{"duration":500}'
+  Pipe: type:"Pipe", expressionType:"EXPRESSION" — value={color,speed,direction}
+  Animate: type:"Animate", expressionType:"EXPRESSION", props:'{"animationName":"bounce","duration":"1s","iterationCount":"infinite"}'
+  Tooltip: type:"Tooltip", expressionType:"EXPRESSION", props:'{"title":"","color":"#333","size":12}'
+  Image: type:"Image", expressionType:"EXPRESSION" — value=URL/base64
+  Peity: type:"Peity", expressionType:"EXPRESSION" — value={type:"bar"|"line"|"pie",data:[],fill:["#c"]}
+  GetSymbol: type:"GetSymbol", expressionType:"EXPRESSION" — value=symbol name
+  QRCodeGeneration: type:"QRCodeGeneration", expressionType:"EXPRESSION" — value=string
+  Faceplate: type:"Faceplate", expressionType:"FACEPLATE", props:'{"faceplateName":"N","alignment":"none","placeholderValues":{"ph":"Var"}}'
+  Iframe: type:"Iframe", expressionType:"EXPRESSION" — value=URL
+  Slider: type:"Slider", props:'{"variableName":"V","min":0,"max":100}'
+  Input: type:"Input", props:'{"variableName":"V"}'
+  Button: type:"Button", props:'{"label":"Text","variableName":"V","value":1}'
+  Menu: type:"Menu", props:'{"items":[...]}'
+  AlarmIndication: type:"AlarmIndication", props:'{"alarmGroupName":"Group"}'
+  Access: type:"Access", props:'{"disable":true,"isRoles":true,"roles":[1]}'
+  Click(SET): type:"Click", expressionType:"SET", props:'{"variableName":"V","value":1}'
+  Click(ANIMATION): type:"Click", expressionType:"ANIMATION", props:'{"animationName":"Target"}'
+  Click(SCRIPT): type:"Click", expressionType:"SCRIPT", props:'{"scriptId":123}'
+  Chart: type:"Chart", expressionType:"EXPRESSION", expression:"return ins.executeScript('name');", props:'{"scriptId":ID}'
+  Datatable: type:"Datatable", same structure as Chart
+
+## 6. Live Value Rules (CRITICAL)
+- Live value → MUST use inscada_get_live_value or inscada_get_live_values (NOT inscada_api)
+  - Correct: GET /api/variables/value?projectId=X&name=Y (single) / GET /api/variables/values?projectId=X&names=Y1,Y2 (multiple)
+  - WRONG (DO NOT USE): /api/variables/live-value, /api/variables/current, /api/runtime/*, /api/communication/*, /api/variables/{id}/live-value, POST /api/variables/live-values
+- If project_id unknown → use list_projects, do NOT ask user
+- General rule: If you can get info via a tool, do NOT ask user — call the tool
+
+## 7. Frame-Bound Variable Reading (2-step)
+- Step 1: inscada_api(POST, /api/variables/filter/pages, query_params:{pageSize:500}, body:{projectId:X, frameId:Y}) → variable list
+- Step 2: inscada_get_live_values(project_id:X, variable_names:"name1,name2,...") → live values
+- No single endpoint reads values by frameId
+
+## 8. Historical Data & Statistics
+- Time series → inscada_logged_values (variable_ids + start_date/end_date)
+- Statistics (min, max, avg, count) → inscada_logged_stats (project_id + variable_names)
+- Paged: GET /api/variables/loggedValues/pages?variableIds=X&startDate=S&endDate=E&pageSize=5000&pageNumber=0
+- Stats: GET /api/variables/loggedValues/stats/hourly (or /daily)?variableIds=X&startDate=S&endDate=E
+- Trends: GET /api/trends → groups, GET /api/trends/{id}/tags → tags with variableId, color, scale
+
+## 9. Chart Rules
+- MUST call chart tool (chart_line/bar/gauge/multi/forecast). Never say "I showed/drew" without calling the tool.
+- chart_line, chart_bar, chart_multi, chart_forecast → variable_names + project_id
+- Add series → chart_multi with ALL series together
+- Gauge → chart_gauge(variable_name, project_id, auto_refresh=true) directly (do NOT call inscada_get_live_value)
+- Forecast → (1) inscada_logged_values, (2) analyze, (3) generate forecast_values, (4) MUST call chart_forecast
+
+## 10. Custom Menu
+- CRUD: list_custom_menus, get_custom_menu/get_custom_menu_by_name, create_custom_menu, update_custom_menu, delete_custom_menu
+- USE TEMPLATES (gauge/line_chart/gauge_and_chart/multi_chart) — do not send content. Free HTML only if templates are insufficient.
+- css and js fields MUST be empty strings. All CSS/JS/HTML goes into html field as complete HTML document
+- Format: {"css":"","js":"","html":"<!DOCTYPE html><html>...</html>"}
+- Script tag escape: </script> → <\\/script>
+- Defaults: target="Home", position="Bottom", menu_order=1
+- Before update: read with get_custom_menu first
+- CSP: CDN only cdnjs.cloudflare.com, ajax.googleapis.com, cdn.jsdelivr.net. External API forbidden.
+- REST API: fetch("/api/...", {credentials:"include", headers:{"X-Space":"space_name","Accept":"application/json"}}). projectId required.
+- icon: Font Awesome 5.x Free (fas/far/fab). Default: "fas fa-industry"
+
+## 11. Space Management
+- Projects: /api/projects, NOT /api/spaces/{id}/projects (no such endpoint)
+- Different space: use set_space tool first
+- Default: "default_space" — persists for session
+
+## 12. Tool Priorities
+- Space→list_spaces, Project→list_projects, Script→list_scripts/get_script/search_in_scripts, Connection→list_connections, Variable→list_variables, Animation→list_animations/get_animation
+- Connection + status → list_connections(include_status=true)
+- Variable list → list_variables(project_id), filter with search param
+- Animation detail → get_animation(animation_id), SVG: include_svg=true
+- If one tool suffices, don't call multiple
+- PRIORITY: Dedicated tools always before generic API
+
+## 13. Generic API (inscada_api)
+- No dedicated tool → inscada_api_endpoints(search) → inscada_api_schema(path, method) → inscada_api(...)
+- path must start with /api/. Path params: {id} format + path_params
+- Query params: query_params object. Array values auto-exploded
+
+## 14. Excel Export
+- Fetch data first, then export_excel({file_name, sheets:[{name,headers,rows}]})
+
+## 15. Interrupted Task Resume
+1. NEVER restart from scratch — check what's already done
+2. Before creating resources, query existing ones
+3. Before modifying code, read current state
+4. Compare target vs current state, perform remaining steps only
+5. Summarize completed/remaining before continuing`;
 
 async function executeTool(name, args) {
   const handler = handlers[name];
@@ -1621,4 +1781,4 @@ async function executeTool(name, args) {
   return await handler(args || {});
 }
 
-module.exports = { executeTool, inscadaApi };
+module.exports = { executeTool, inscadaApi, INSCADA_GUIDE };
