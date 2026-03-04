@@ -48,6 +48,22 @@
       line-height: 1.7;
       margin-bottom: 20px;
     }
+    .license-info {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      padding: 3px 10px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+    .license-info.active {
+      background: #e8f8f0;
+      color: #2d8a5e;
+    }
+    .license-info.inactive {
+      background: #fef2f1;
+      color: #d44237;
+    }
     .copyright {
       font-size: 11px;
       color: #94A1B3;
@@ -72,6 +88,7 @@
   <div class="app-name">inSCADA AI Asistan</div>
   <div class="version" id="appVersion">v1.1.0</div>
   <div class="info" id="sysInfo">Loading...</div>
+  <div class="license-info inactive" id="licenseInfo">Kontrol ediliyor...</div>
   <div class="copyright">&copy; 2025 inSCADA</div>
   <button class="close-btn" id="closeBtn">Kapat</button>
 
@@ -84,6 +101,22 @@
           "Electron " + info.electronVersion + "<br>" +
           "Node.js " + info.nodeVersion + "<br>" +
           "Chrome " + info.chromeVersion;
+      }
+      // Lisans durumu
+      if (window.electronAPI && window.electronAPI.getLicenseStatus) {
+        try {
+          const license = await window.electronAPI.getLicenseStatus();
+          const $el = document.getElementById("licenseInfo");
+          if (license.hasLicense) {
+            $el.textContent = "Lisansli";
+            $el.className = "license-info active";
+          } else {
+            $el.textContent = "Lisanssiz";
+            $el.className = "license-info inactive";
+          }
+        } catch (e) {
+          document.getElementById("licenseInfo").style.display = "none";
+        }
       }
       document.getElementById("closeBtn").addEventListener("click", () => {
         if (window.electronAPI && window.electronAPI.closeAbout) {

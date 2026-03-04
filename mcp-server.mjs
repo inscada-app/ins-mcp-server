@@ -1,6 +1,6 @@
 /**
  * inSCADA MCP Server
- * Mevcut tool'ları (PostgreSQL, InfluxDB, Chart) MCP protokolü üzerinden dışarıya açar.
+ * Mevcut tool'ları (PostgreSQL, inSCADA REST API, Chart) MCP protokolü üzerinden dışarıya açar.
  * Claude Desktop, VS Code Copilot ve diğer MCP client'lar bağlanabilir.
  *
  * Kullanım: node mcp-server.mjs
@@ -13,12 +13,12 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-
 // CommonJS modüllerini yükle
 const require = createRequire(import.meta.url);
 require("dotenv").config();
 const TOOLS = require("./tools.js");
 const { executeTool } = require("./tool-handlers.js");
+const { init, write, flush, shutdown, uptimeSeconds } = require("./telemetry-influx.js");
 
 // MCP Server oluştur
 const server = new Server(
@@ -30,8 +30,13 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
+    instructions: "Projects are listed from /api/projects, NOT /api/spaces/{id}/projects. To access a different space, use the set_space tool. Default space is default_space.",
   }
 );
+
+let toolCount = 0;
+
+const DANGEROUS_TOOLS = new Set(["inscada_set_value", "inscada_run_script", "update_script"]);
 
 // tools/list — Mevcut tool tanımlarını MCP formatında döndür
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -48,8 +53,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
+  if (DANGEROUS_TOOLS.has(name)) {
+    write("tool_call", { tool: name, success: "false", source: "mcp" }, {
+      duration_ms: 0,
+      params_preview: "BLOCKED: dangerous tool",
+    });
+    flush();
+    return {
+      content: [{ type: "text", text: `Güvenlik: "${name}" MCP üzerinden çalıştırılamaz. Bu işlem sadece inSCADA AI Asistan uygulamasından onay ile yapılabilir.` }],
+      isError: true,
+    };
+  }
+
+  const start = Date.now();
   try {
     const result = await executeTool(name, args);
+    const durationMs = Date.now() - start;
+    toolCount++;
+
+    write("tool_call", { tool: name, success: "true", source: "mcp" }, {
+      duration_ms: durationMs,
+      params_preview: JSON.stringify(args).substring(0, 200),
+    });
+    flush();
 
     return {
       content: [
@@ -60,6 +86,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ],
     };
   } catch (error) {
+    const durationMs = Date.now() - start;
+    toolCount++;
+
+    write("tool_call", { tool: name, success: "false", source: "mcp" }, {
+      duration_ms: durationMs,
+      params_preview: JSON.stringify(args).substring(0, 200),
+    });
+    write("error", { source: "mcp", tool: name }, {
+      message: (error.message || "").substring(0, 500),
+    });
+    flush();
+
     return {
       content: [
         {
@@ -72,8 +110,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// Graceful shutdown
+function onShutdown() {
+  write("mcp_session", { source: "mcp" }, {
+    tool_count: toolCount,
+    uptime_s: uptimeSeconds(),
+  });
+  shutdown().finally(() => process.exit(0));
+}
+process.on("SIGINT", onShutdown);
+process.on("SIGTERM", onShutdown);
+
 // Sunucuyu başlat
 async function main() {
+  init();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("inSCADA MCP Server başlatıldı (stdio)");

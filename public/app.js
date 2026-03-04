@@ -16,6 +16,8 @@
   const statusIndicator = document.getElementById("statusIndicator");
   const statusText = document.getElementById("statusText");
   const toolCountEl = document.getElementById("toolCount");
+  const spaceSelect = document.getElementById("spaceSelect");
+  const projectSelect = document.getElementById("projectSelect");
 
   // State
   let currentConversationId = generateId();
@@ -80,10 +82,27 @@
 
   function init() {
     checkHealth();
+    loadSpaces();
+    loadCurrentUser();
     renderChatList();
     loadConversation(currentConversationId);
     setupEventListeners();
     autoResizeInput();
+  }
+
+  async function loadCurrentUser() {
+    const el = document.getElementById("headerSubtitle");
+    if (!el) return;
+    try {
+      const res = await fetch("/api/current-user");
+      if (!res.ok) throw new Error();
+      const user = await res.json();
+      const name = user.name || "";
+      const role = (user.roles && user.roles.length) ? user.roles.join(", ") : "";
+      el.textContent = role ? `${name} • ${role}` : name || "inSCADA AI Asistan";
+    } catch {
+      el.textContent = "inSCADA AI Asistan";
+    }
   }
 
   function setupEventListeners() {
@@ -135,11 +154,110 @@
       statusIndicator.classList.remove("error");
       statusText.textContent = "Bağlı";
       toolCountEl.textContent = data.tools || 0;
+      const modelNameEl = document.getElementById("modelName");
+      if (modelNameEl && data.model) modelNameEl.textContent = data.model;
     } catch (e) {
       statusIndicator.classList.add("error");
       statusText.textContent = "Bağlantı yok";
     }
   }
+
+  // ============ Workspace Context ============
+
+  async function loadSpaces() {
+    try {
+      const res = await fetch("/api/spaces");
+      if (!res.ok) return;
+      const spaces = await res.json();
+      spaceSelect.innerHTML = '<option value="">Space se\u00e7in...</option>';
+      for (const s of spaces) {
+        const opt = document.createElement("option");
+        opt.value = s.space_id;
+        opt.textContent = s.name;
+        spaceSelect.appendChild(opt);
+      }
+      // Eğer tek space varsa otomatik seç
+      if (spaces.length === 1) {
+        spaceSelect.value = spaces[0].space_id;
+        await loadProjects(spaces[0].space_id);
+      }
+      // Kaydedilmiş context varsa geri yükle
+      restoreWorkspaceContext();
+    } catch (e) {
+      // Space yüklenemezse sessiz kal
+    }
+  }
+
+  async function loadProjects(spaceId) {
+    projectSelect.innerHTML = '<option value="">Proje se\u00e7in...</option>';
+    if (!spaceId) {
+      projectSelect.disabled = true;
+      return;
+    }
+    try {
+      const res = await fetch(`/api/projects/${spaceId}`);
+      if (!res.ok) return;
+      const projects = await res.json();
+      for (const p of projects) {
+        const opt = document.createElement("option");
+        opt.value = p.project_id;
+        opt.textContent = p.name;
+        projectSelect.appendChild(opt);
+      }
+      projectSelect.disabled = false;
+      // Eğer tek proje varsa otomatik seç
+      if (projects.length === 1) {
+        projectSelect.value = projects[0].project_id;
+      }
+    } catch (e) {
+      projectSelect.disabled = true;
+    }
+  }
+
+  function getWorkspaceContext() {
+    const spaceId = spaceSelect.value;
+    const projectId = projectSelect.value;
+    if (!spaceId || !projectId) return null;
+    return {
+      space_id: Number(spaceId),
+      space_name: spaceSelect.selectedOptions[0]?.text || "",
+      project_id: Number(projectId),
+      project_name: projectSelect.selectedOptions[0]?.text || "",
+    };
+  }
+
+  function saveWorkspaceContext() {
+    const ctx = getWorkspaceContext();
+    if (!conversations[currentConversationId]) return;
+    conversations[currentConversationId].context = ctx;
+    localStorage.setItem("inscada_chats", JSON.stringify(conversations));
+  }
+
+  function restoreWorkspaceContext() {
+    const conv = conversations[currentConversationId];
+    const ctx = conv?.context;
+    if (!ctx) return;
+    // Space'i set et
+    if (ctx.space_id && spaceSelect.querySelector(`option[value="${ctx.space_id}"]`)) {
+      spaceSelect.value = ctx.space_id;
+      // Projeleri yükle ve ardından proje seç
+      loadProjects(ctx.space_id).then(() => {
+        if (ctx.project_id) {
+          projectSelect.value = ctx.project_id;
+        }
+      });
+    }
+  }
+
+  // Space/proje dropdown event'leri
+  spaceSelect.addEventListener("change", async () => {
+    await loadProjects(spaceSelect.value);
+    saveWorkspaceContext();
+  });
+
+  projectSelect.addEventListener("change", () => {
+    saveWorkspaceContext();
+  });
 
   async function sendMessage() {
     const text = inputEl.value.trim();
@@ -165,7 +283,11 @@
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, conversationId: currentConversationId }),
+        body: JSON.stringify({
+          message: text,
+          conversationId: currentConversationId,
+          workspaceContext: getWorkspaceContext(),
+        }),
       });
 
       if (!res.ok) {
@@ -231,9 +353,14 @@
           if (chart.__chart) {
             const chartId = `chart_${Date.now()}_${ci}`;
             const h = chart.chart_type === "gauge" ? 250 : 350;
+            const chartIcon = chart.chart_type === "gauge" ? "⏱" : chart.chart_type === "bar" ? "📊" : "📈";
+            const chartTitle = chart.title || "";
             contentHtml += `
-              <div class="chart-container" id="${chartId}" style="padding:12px; background:var(--bg-secondary); height:${h}px;">
-                <canvas></canvas>
+              <div class="chart-container" id="${chartId}" style="background:var(--bg-secondary);">
+                <div class="chart-title">${chartIcon} ${escapeHtml(chartTitle)}</div>
+                <div style="padding:12px; height:${h}px;">
+                  <canvas></canvas>
+                </div>
               </div>`;
             // Chart.js render'ı DOM'a eklendikten sonra çalışmalı
             setTimeout(() => window.renderChart(chartId, chart), 100);
@@ -362,17 +489,17 @@
         <p>SCADA projelerinizi yönetin, scriptleri düzenleyin, endüstriyel verileri analiz edin.</p>
         <div class="quick-actions">
           <button class="quick-btn" data-msg="Space'leri listele">📁 Space'leri Göster</button>
-          <button class="quick-btn" data-msg="InfluxDB'deki measurement'ları listele">📊 Measurement'lar</button>
+          <button class="quick-btn" data-msg="Değişkenleri listele">📊 Değişkenler</button>
           <button class="quick-btn" data-msg="Son 24 saatte güncellenen scriptleri göster">📝 Son Scriptler</button>
           <button class="quick-btn" data-msg="Sistemin genel durumunu özetle">🔍 Sistem Durumu</button>
           <button class="quick-btn" data-msg="Projeleri listele">🏭 Projeler</button>
           <button class="quick-btn" data-msg="Veritabanından tüm projeleri bul ve aktif alarmları göster">🚨 Aktif Alarmlar</button>
           <button class="quick-btn" data-msg="Veritabanından tüm connection'ları çek ve bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
           <button class="quick-btn" data-msg="Veritabanından projeleri ve değişkenleri listele, sonra ilk değişkenin canlı değerini oku">📡 Canlı Değer</button>
-          <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve son 24 saatlik veriyi line chart olarak çiz">📈 Line Chart</button>
-          <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
-          <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul ve anlık değerini gauge olarak göster">🎯 Gauge</button>
-          <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul, son 24 saatlik veriyi analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
+          <button class="quick-btn" data-msg="Değişkenleri bul ve son 24 saatlik veriyi line chart olarak çiz">📈 Line Chart</button>
+          <button class="quick-btn" data-msg="Değişkenleri bul ve ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
+          <button class="quick-btn" data-msg="Bir değişken bul ve anlık değerini gauge olarak göster">🎯 Gauge</button>
+          <button class="quick-btn" data-msg="Bir değişken bul, son 24 saatlik veriyi analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
         </div>
       </div>`;
     chatTitle.textContent = "Yeni Sohbet";
@@ -393,6 +520,10 @@
     stopAllGaugeRefreshes();
     currentConversationId = id;
     const conv = conversations[id];
+
+    // Workspace context'i geri yükle
+    restoreWorkspaceContext();
+
     if (!conv || !conv.messages || !conv.messages.length) return;
 
     // Welcome'ı kaldır
@@ -407,8 +538,12 @@
 
   function saveMessage(role, text, charts = [], tools = [], downloads = [], usage = null, confirmations = [], tables = []) {
     if (!conversations[currentConversationId]) {
-      conversations[currentConversationId] = { title: "Yeni Sohbet", messages: [], created: Date.now() };
+      conversations[currentConversationId] = { title: "Yeni Sohbet", messages: [], created: Date.now(), context: null };
     }
+    // Workspace context'i conversation'a kaydet
+    const ctx = getWorkspaceContext();
+    if (ctx) conversations[currentConversationId].context = ctx;
+
     conversations[currentConversationId].messages.push({ role, text, charts, tools, downloads, usage, confirmations, tables, time: Date.now() });
     localStorage.setItem("inscada_chats", JSON.stringify(conversations));
     renderChatList();
@@ -643,7 +778,7 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            title: { display: true, text: chartData.title, color: "#475466", font: { size: 14, weight: "bold" } },
+            title: { display: false },
             legend: { display: (chartData.series || []).length > 1, labels: { color: "#657584" } },
           },
           scales: {
@@ -668,7 +803,7 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            title: { display: true, text: chartData.title, color: "#475466", font: { size: 14, weight: "bold" } },
+            title: { display: false },
             legend: { display: false },
           },
           scales: {
@@ -700,7 +835,7 @@
           rotation: 270,
           cutout: "75%",
           plugins: {
-            title: { display: true, text: chartData.title, color: "#475466", font: { size: 14, weight: "bold" } },
+            title: { display: false },
             legend: { display: false },
           },
         },

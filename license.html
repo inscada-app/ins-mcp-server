@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>inSCADA AI Asistan — Lisans</title>
+  <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F4F5F9;
+      --bg-tertiary: #EBEDF0;
+      --text-primary: #475466;
+      --text-secondary: #657584;
+      --text-muted: #94A1B3;
+      --accent: #1CA1C1;
+      --accent-hover: #1992af;
+      --border: #DADEE0;
+      --error: #FF5C4C;
+      --success: #55CD97;
+      --radius-sm: 2px;
+      --radius-md: 4px;
+      --shadow: 0 1px 4px rgba(0,0,0,0.08);
+      --font-sans: 'PT Sans', 'Inter', -apple-system, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .container {
+      width: 400px;
+      text-align: center;
+    }
+
+    .logo {
+      width: 56px;
+      height: 56px;
+      background: var(--accent);
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .app-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .app-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+
+    .group {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+      text-align: left;
+    }
+
+    .group-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--bg-tertiary);
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 9px 12px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 14px;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      transition: border-color 0.15s;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    input[type="text"]::placeholder {
+      text-transform: none;
+      letter-spacing: 0;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .btn {
+      padding: 9px 24px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s;
+      width: 100%;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-activate {
+      margin-top: 12px;
+    }
+
+    .msg {
+      font-size: 12px;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+
+    .msg.success { color: var(--success); }
+    .msg.error { color: var(--error); }
+    .msg.loading { color: var(--text-muted); }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .purchase-section {
+      text-align: center;
+    }
+
+    .purchase-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .btn-purchase {
+      padding: 10px 24px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 700;
+      border: 2px solid var(--accent);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      transition: all 0.15s;
+      width: 100%;
+    }
+
+    .btn-purchase:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">iS</div>
+    <div class="app-name">inSCADA AI Asistan</div>
+    <div class="app-sub">Devam etmek icin lisans anahtarinizi girin</div>
+
+    <div class="group">
+      <div class="group-title">Lisans Etkinlestirme</div>
+      <label for="licenseKey">Lisans Anahtari</label>
+      <input type="text" id="licenseKey" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" maxlength="50" autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary btn-activate" id="btnActivate">Etkinlestir</button>
+      <div class="msg" id="statusMsg"></div>
+    </div>
+
+    <div class="divider">veya</div>
+
+    <div class="purchase-section">
+      <div class="purchase-text">Henuz lisansiniz yok mu?</div>
+      <button class="btn-purchase" id="btnPurchase">Abonelik Satin Al</button>
+    </div>
+  </div>
+
+  <!-- Paddle.js -->
+  <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+  <script>
+    // Paddle yapılandırması
+    // TODO: Production'da gerçek client-side token ve priceId kullanılacak
+    const PADDLE_CLIENT_TOKEN = "test_01234567890abcdef"; // Placeholder
+    const PADDLE_PRICE_ID = "pri_01234567890abcdef";       // Placeholder
+    const PADDLE_ENV = "sandbox"; // "sandbox" veya "production"
+
+    // Paddle başlat
+    try {
+      if (typeof Paddle !== "undefined") {
+        if (PADDLE_ENV === "sandbox") {
+          Paddle.Environment.set("sandbox");
+        }
+        Paddle.Initialize({
+          token: PADDLE_CLIENT_TOKEN,
+        });
+      }
+    } catch (e) {
+      console.warn("Paddle yüklenemedi:", e);
+    }
+
+    const $key = document.getElementById("licenseKey");
+    const $msg = document.getElementById("statusMsg");
+    const $btnActivate = document.getElementById("btnActivate");
+    const $btnPurchase = document.getElementById("btnPurchase");
+
+    // Otomatik tire ekleme (License4J formatı: XXXXX-XXXXX-XXXXX-XXXXX)
+    $key.addEventListener("input", function () {
+      let val = this.value.replace(/[^A-Z0-9-]/gi, "").toUpperCase();
+      // Tire olmadan grupla (5'er karakter)
+      const raw = val.replace(/-/g, "");
+      if (raw.length > 0) {
+        const groups = raw.match(/.{1,5}/g) || [];
+        val = groups.join("-");
+      }
+      this.value = val.substring(0, 50);
+    });
+
+    // Enter ile etkinleştir
+    $key.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        $btnActivate.click();
+      }
+    });
+
+    // Etkinleştir
+    $btnActivate.addEventListener("click", async () => {
+      const key = $key.value.trim();
+      if (!key) {
+        $msg.textContent = "Lütfen lisans anahtarınızı girin.";
+        $msg.className = "msg error";
+        return;
+      }
+
+      $btnActivate.disabled = true;
+      $msg.innerHTML = '<span class="spinner"></span>Doğrulanıyor...';
+      $msg.className = "msg loading";
+
+      try {
+        const result = await window.electronAPI.validateLicense(key);
+        if (result.valid) {
+          $msg.textContent = "Lisans etkinleştirildi! Ayarlara yönlendiriliyorsunuz...";
+          $msg.className = "msg success";
+          setTimeout(() => {
+            window.electronAPI.licenseOpenSettings();
+          }, 1000);
+        } else {
+          $msg.textContent = result.error || "Geçersiz lisans anahtarı.";
+          $msg.className = "msg error";
+          $btnActivate.disabled = false;
+        }
+      } catch (err) {
+        $msg.textContent = "Hata: " + err.message;
+        $msg.className = "msg error";
+        $btnActivate.disabled = false;
+      }
+    });
+
+    // Satın Al — Paddle Checkout
+    $btnPurchase.addEventListener("click", () => {
+      try {
+        if (typeof Paddle !== "undefined" && Paddle.Checkout) {
+          Paddle.Checkout.open({
+            items: [{ priceId: PADDLE_PRICE_ID, quantity: 1 }],
+          });
+        } else {
+          // Paddle yüklenmediyse web sayfasına yönlendir
+          const { shell } = require("electron");
+          if (shell) {
+            shell.openExternal("https://inscada.com/ai-asistan/pricing");
+          }
+        }
+      } catch (e) {
+        console.warn("Paddle checkout açılamadı:", e);
+        // Fallback: bilgilendirme
+        $msg.textContent = "Satın alma sayfası açılamadı. inscada.com/ai-asistan adresini ziyaret edin.";
+        $msg.className = "msg error";
+      }
+    });
+
+    // Sayfa yüklendiğinde focus
+    window.addEventListener("DOMContentLoaded", () => {
+      $key.focus();
+    });
+  </script>
+</body>
+</html>

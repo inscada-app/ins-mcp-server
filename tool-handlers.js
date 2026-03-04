@@ -1,9 +1,7 @@
 /**
  * inSCADA Tool Handlers
- * PostgreSQL + InfluxDB + Chart (frontend-rendered)
+ * inSCADA REST API + Chart (frontend-rendered)
  */
-
-const { Pool } = require("pg");
 const http = require("http");
 const https = require("https");
 const { URL } = require("url");
@@ -16,10 +14,183 @@ const DOWNLOADS_DIR = pathMod.join(os.tmpdir(), "inscada-downloads");
 if (!fs.existsSync(DOWNLOADS_DIR)) fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 
 // ============================================================
+// OpenAPI Index — api-docs.json'dan hafif endpoint kataloğu
+// Startup'ta bir kez yüklenir, Claude tool'ları ile aranır
+// ============================================================
+const API_DOCS_PATH = pathMod.join(__dirname, "api-docs.json");
+let API_INDEX = [];    // [{path, method, summary, tag, category, params[], hasBody, bodyRef}]
+let API_SCHEMAS = {};  // component schemas (raw)
+let API_SPEC = null;   // full spec (for schema resolution)
+
+try {
+  const raw = fs.readFileSync(API_DOCS_PATH, "utf-8");
+  API_SPEC = JSON.parse(raw);
+  API_SCHEMAS = (API_SPEC.components && API_SPEC.components.schemas) || {};
+
+  // Kategori ataması: tag → insan-okunur kategori
+  function tagToCategory(tag) {
+    if (!tag) return "other";
+    const t = tag.toLowerCase();
+    if (t.includes("alarm")) return "alarms";
+    if (t.includes("variable") || t.includes("value")) return "variables";
+    if (t.includes("connection") || t.includes("device") || t.includes("frame")) return "connections";
+    if (t.includes("script")) return "scripts";
+    if (t.includes("project")) return "projects";
+    if (t.includes("report") || t.includes("jasper") || t.includes("pdf")) return "reports";
+    if (t.includes("animation") || t.includes("faceplate") || t.includes("symbol")) return "visualization";
+    if (t.includes("trend") || t.includes("monitor") || t.includes("board")) return "trends";
+    if (t.includes("user") || t.includes("role") || t.includes("permission") || t.includes("auth") || t.includes("login")) return "users";
+    if (t.includes("space")) return "spaces";
+    if (t.includes("menu")) return "menus";
+    if (t.includes("expression")) return "expressions";
+    if (t.includes("data-transfer")) return "data-transfer";
+    if (t.includes("custom")) return "custom";
+    if (t.includes("modbus") || t.includes("opc") || t.includes("mqtt") || t.includes("s-7") || t.includes("iec") || t.includes("dnp") || t.includes("fatek") || t.includes("ethernet") || t.includes("local")) return "protocols";
+    if (t.includes("template")) return "templates";
+    if (t.includes("keyword") || t.includes("language") || t.includes("map") || t.includes("search") || t.includes("metadata")) return "system";
+    return "other";
+  }
+
+  const paths = API_SPEC.paths || {};
+  for (const [pathStr, methods] of Object.entries(paths)) {
+    for (const [method, spec] of Object.entries(methods)) {
+      if (["get", "post", "put", "delete", "patch"].indexOf(method) === -1) continue;
+      const tag = (spec.tags && spec.tags[0]) || "";
+      // Parametreleri çıkar (header auth parametrelerini hariç tut)
+      const params = (spec.parameters || [])
+        .filter(p => p.in !== "header")
+        .map(p => ({
+          name: p.name,
+          in: p.in,
+          required: !!p.required,
+          type: (p.schema && p.schema.type) || "string",
+        }));
+      // Body ref
+      let hasBody = false;
+      let bodyRef = null;
+      if (spec.requestBody && spec.requestBody.content) {
+        hasBody = true;
+        const jsonContent = spec.requestBody.content["application/json"] || spec.requestBody.content["*/*"];
+        if (jsonContent && jsonContent.schema && jsonContent.schema["$ref"]) {
+          bodyRef = jsonContent.schema["$ref"].replace("#/components/schemas/", "");
+        }
+      }
+      API_INDEX.push({
+        path: pathStr,
+        method: method.toUpperCase(),
+        summary: spec.summary || "",
+        operationId: spec.operationId || "",
+        tag,
+        category: tagToCategory(tag),
+        params,
+        hasBody,
+        bodyRef,
+      });
+    }
+  }
+
+  // Non-protocol endpoint'leri öne al (daha sık kullanılır)
+  const protocolPriority = (ep) => ep.category === "protocols" ? 1 : 0;
+  API_INDEX.sort((a, b) => protocolPriority(a) - protocolPriority(b));
+
+  console.error(`[API Index] ${API_INDEX.length} endpoints indexed from api-docs.json`);
+} catch (err) {
+  console.error(`[API Index] api-docs.json yüklenemedi: ${err.message}`);
+}
+
+/**
+ * $ref çözümleme — max depth ile circular ref koruması
+ */
+function resolveSchemaRef(refName, depth = 0) {
+  if (depth > 3) return { _note: `$ref depth limit: ${refName}` };
+  const schema = API_SCHEMAS[refName];
+  if (!schema) return { _note: `Schema bulunamadı: ${refName}` };
+
+  const resolved = { ...schema };
+  if (resolved.properties) {
+    const props = {};
+    for (const [key, val] of Object.entries(resolved.properties)) {
+      if (val["$ref"]) {
+        const nestedRef = val["$ref"].replace("#/components/schemas/", "");
+        props[key] = resolveSchemaRef(nestedRef, depth + 1);
+      } else if (val.items && val.items["$ref"]) {
+        const nestedRef = val.items["$ref"].replace("#/components/schemas/", "");
+        props[key] = { type: "array", items: resolveSchemaRef(nestedRef, depth + 1) };
+      } else {
+        props[key] = val;
+      }
+    }
+    resolved.properties = props;
+  }
+  return resolved;
+}
+
+/**
+ * Endpoint'in tam şemasını çöz (params + body + response)
+ */
+function resolveEndpointSchema(pathStr, method) {
+  if (!API_SPEC) return null;
+  const pathSpec = API_SPEC.paths[pathStr];
+  if (!pathSpec) return null;
+  const methodSpec = pathSpec[method.toLowerCase()];
+  if (!methodSpec) return null;
+
+  const result = {
+    path: pathStr,
+    method: method.toUpperCase(),
+    summary: methodSpec.summary || "",
+    tag: (methodSpec.tags && methodSpec.tags[0]) || "",
+  };
+
+  // Query/path parametreleri
+  result.parameters = (methodSpec.parameters || [])
+    .filter(p => p.in !== "header")
+    .map(p => ({
+      name: p.name,
+      in: p.in,
+      required: !!p.required,
+      type: (p.schema && p.schema.type) || "string",
+      description: p.description || "",
+    }));
+
+  // Request body
+  if (methodSpec.requestBody && methodSpec.requestBody.content) {
+    const jsonContent = methodSpec.requestBody.content["application/json"] || methodSpec.requestBody.content["*/*"];
+    if (jsonContent && jsonContent.schema) {
+      if (jsonContent.schema["$ref"]) {
+        const refName = jsonContent.schema["$ref"].replace("#/components/schemas/", "");
+        result.requestBody = resolveSchemaRef(refName, 0);
+      } else {
+        result.requestBody = jsonContent.schema;
+      }
+    }
+  }
+
+  // Response (200)
+  const resp200 = methodSpec.responses && methodSpec.responses["200"];
+  if (resp200 && resp200.content) {
+    const respContent = resp200.content["*/*"] || resp200.content["application/json"];
+    if (respContent && respContent.schema) {
+      if (respContent.schema["$ref"]) {
+        const refName = respContent.schema["$ref"].replace("#/components/schemas/", "");
+        result.responseSchema = resolveSchemaRef(refName, 0);
+      } else if (respContent.schema.items && respContent.schema.items["$ref"]) {
+        const refName = respContent.schema.items["$ref"].replace("#/components/schemas/", "");
+        result.responseSchema = { type: "array", items: resolveSchemaRef(refName, 0) };
+      } else {
+        result.responseSchema = respContent.schema;
+      }
+    }
+  }
+
+  return result;
+}
+
+// ============================================================
 // inSCADA REST API Client
 // Auth: POST /login (form-data) → ins_access_token + ins_refresh_token cookies
 // Token auto-refresh: 3.5 dk (4 dk expiry'den önce)
-// Her istekte X-Space header gönderilir (default_space)
+// Her istekte X-Space header gönderilir (varsayılan: default_space, set_space ile değiştirilebilir)
 // Tarih formatı (loggedValues): "yyyy-MM-dd HH:mm:ss"
 // variableIds: explode format (variableIds=1&variableIds=2)
 // Fired alarms: project_id varsa /monitor endpoint kullanılır
@@ -33,6 +204,11 @@ class InscadaAPI {
     this.accessToken = null;
     this.refreshToken = null;
     this.refreshTimer = null;
+    this.currentSpace = "default_space";
+  }
+
+  setSpace(name) {
+    this.currentSpace = name;
   }
 
   async login() {
@@ -94,7 +270,7 @@ class InscadaAPI {
       const headers = {
         Accept: "application/json",
         Cookie: `ins_access_token=${this.accessToken}; ins_refresh_token=${this.refreshToken}`,
-        "X-Space": "default_space",
+        "X-Space": this.currentSpace,
       };
       if (bodyStr) {
         headers["Content-Type"] = "application/json";
@@ -139,365 +315,845 @@ class InscadaAPI {
 const inscadaApi = new InscadaAPI();
 
 // ============================================================
-// PostgreSQL
+// Helpers — REST API veri çekme yardımcıları
 // ============================================================
-const pool = new Pool({
-  host: process.env.INSCADA_DB_HOST || "localhost",
-  port: parseInt(process.env.INSCADA_DB_PORT || "5432"),
-  database: process.env.INSCADA_DB_NAME || "promis",
-  user: process.env.INSCADA_DB_USER || "postgres",
-  password: process.env.INSCADA_DB_PASSWORD || "1907",
-  options: `-c search_path=inscada,public`,
-});
+
+/** time_range ("24h","7d","1h") → {startDate, endDate} (yyyy-MM-dd HH:mm:ss) */
+function timeRangeToDateRange(timeRange) {
+  const match = (timeRange || "24h").match(/^(\d+)([smhdw])$/);
+  if (!match) throw new Error("Geçersiz zaman aralığı formatı: " + timeRange);
+  const multipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000 };
+  const ms = parseInt(match[1]) * (multipliers[match[2]] || 3600000);
+  const end = new Date();
+  const start = new Date(end.getTime() - ms);
+  const fmt = (d) => d.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+  return { startDate: fmt(start), endDate: fmt(end) };
+}
+
+/** variable_names (string, virgüllü) + project_id → [{variable_id, name}] via REST API */
+async function resolveVariableIds(projectId, variableNames) {
+  const names = variableNames.split(",").map(n => n.trim()).filter(Boolean);
+  if (!names.length) throw new Error("variable_names boş olamaz.");
+  const result = await inscadaApi.request("GET",
+    `/api/variables/names?projectId=${projectId}&names=${encodeURIComponent(names.join(","))}`);
+  if (!Array.isArray(result) || !result.length)
+    throw new Error(`Değişken bulunamadı: ${names.join(", ")} (project_id: ${projectId})`);
+  return result.map(v => ({ variable_id: v.id, name: v.name }));
+}
+
+const MAX_CHART_POINTS = 3000;
+
+/**
+ * Tarih aralığına göre optimal interval (ms) hesaplar.
+ * Saniyede 1 veri loglandığı kabul edilir. Toplam saniye MAX_CHART_POINTS'i aşarsa
+ * interval = ceil(totalSeconds / MAX_CHART_POINTS) * 1000 ms döner. Aşmazsa minimum 1000ms.
+ */
+function calcSmartInterval(startDate, endDate) {
+  const s = new Date(startDate.replace(" ", "T") + "Z").getTime();
+  const e = new Date(endDate.replace(" ", "T") + "Z").getTime();
+  const totalSeconds = Math.max(1, Math.round((e - s) / 1000));
+  if (totalSeconds <= MAX_CHART_POINTS) return 1000;
+  return Math.ceil(totalSeconds / MAX_CHART_POINTS) * 1000;
+}
+
+/**
+ * Akıllı veri çekme: calcSmartInterval ile hesaplanan interval (min 1000ms) ile
+ * loggedValues/stats endpoint'ini kullanır. [{x, y, name}] formatında normalize döner.
+ */
+async function smartFetch(variableIds, startDate, endDate) {
+  const interval = calcSmartInterval(startDate, endDate);
+  const stats = await fetchLoggedStats(variableIds, startDate, endDate, interval);
+  if (!Array.isArray(stats)) return [];
+  return stats.map(r => ({ x: r.dttm, y: r.avgValue, name: r.name || String(r.variableId) }));
+}
+
+/** loggedValues endpoint çağrısı — variableIds + startDate/endDate → [{value, dttm, name, ...}] */
+async function fetchLoggedValues(variableIds, startDate, endDate) {
+  const ids = Array.isArray(variableIds) ? variableIds : [variableIds];
+  const idParams = ids.map(id => `variableIds=${id}`).join("&");
+  let path = `/api/variables/loggedValues?${idParams}`;
+  if (startDate) path += `&startDate=${encodeURIComponent(startDate)}`;
+  if (endDate) path += `&endDate=${encodeURIComponent(endDate)}`;
+  return inscadaApi.request("GET", path);
+}
+
+/** loggedValues/stats endpoint — variableIds + startDate/endDate + interval → stats */
+async function fetchLoggedStats(variableIds, startDate, endDate, interval) {
+  const ids = Array.isArray(variableIds) ? variableIds : [variableIds];
+  const idParams = ids.map(id => `variableIds=${id}`).join("&");
+  let path = `/api/variables/loggedValues/stats?${idParams}`;
+  if (startDate) path += `&startDate=${encodeURIComponent(startDate)}`;
+  if (endDate) path += `&endDate=${encodeURIComponent(endDate)}`;
+  if (interval) path += `&interval=${interval}`;
+  return inscadaApi.request("GET", path);
+}
+
+/** stats/daily endpoint — projectId + names → daily stats */
+async function fetchDailyStats(projectId, names, startDate, endDate) {
+  const nameList = Array.isArray(names) ? names.join(",") : names;
+  let path = `/api/variables/loggedValues/stats/daily?projectId=${projectId}&names=${encodeURIComponent(nameList)}`;
+  if (startDate) path += `&startDate=${encodeURIComponent(startDate)}`;
+  if (endDate) path += `&endDate=${encodeURIComponent(endDate)}`;
+  return inscadaApi.request("GET", path);
+}
 
 // ============================================================
-// InfluxDB
+// Custom Menu Template Helpers
 // ============================================================
-const INFLUX_HOST = process.env.INFLUX_HOST || "localhost";
-const INFLUX_PORT = parseInt(process.env.INFLUX_PORT || "8086");
-const INFLUX_DB = process.env.INFLUX_DB || "inscada";
-const INFLUX_USER = process.env.INFLUX_USER || "";
-const INFLUX_PASSWORD = process.env.INFLUX_PASSWORD || "";
-const INFLUX_USE_SSL = process.env.INFLUX_USE_SSL === "true";
 
-// InfluxQL injection sanitization
-function sanitizeInflux(input) {
-  if (!input || typeof input !== "string") return "";
-  const forbidden = /;|DROP\s|DELETE\s|CREATE\s|ALTER\s|GRANT\s|INTO\s/i;
-  if (forbidden.test(input)) throw new Error("Geçersiz InfluxDB ifadesi.");
-  return input;
+/** HTML-escape for template interpolation (XSS koruması) */
+function _escTpl(s) {
+  if (s == null) return "";
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function sanitizeInfluxIdentifier(name) {
-  if (!name || typeof name !== "string") return "";
-  if (!/^[a-zA-Z0-9_\-]+$/.test(name)) throw new Error("Geçersiz measurement/field adı.");
-  return name;
+/** Common <head> block: charset, viewport, Chart.js CDN, date adapter, Inter font */
+function _templateHead(title) {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${_escTpl(title)}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">`;
 }
 
-function sanitizeInfluxTimeRange(range) {
-  if (!range || typeof range !== "string") return "24h";
-  if (!/^\d+[smhdw]$/.test(range)) throw new Error("Geçersiz zaman aralığı formatı.");
-  return range;
+/** Common CSS styles — Webix Flat theme (light, clean, teal accent) */
+function _templateStyles(extra) {
+  return `<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#EBEDF0;color:#475466;min-height:100vh}
+.dashboard-header{background:#FFFFFF;padding:18px 24px;border-bottom:1px solid #DADEE0;display:flex;align-items:center;gap:12px}
+.dashboard-header h1{font-size:17px;font-weight:600;color:#313131}
+.dashboard-header .live-dot{width:8px;height:8px;border-radius:50%;background:#55CD97;animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.dashboard-body{padding:20px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.card{background:#FFFFFF;border:1px solid #DADEE0;border-radius:6px;padding:20px;position:relative}
+.card-title{font-size:13px;font-weight:500;color:#657584;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px}
+.gauge-value{font-size:42px;font-weight:700;color:#313131;margin-top:-30px}
+.gauge-unit{font-size:14px;color:#657584;margin-top:4px}
+.gauge-range{display:flex;justify-content:space-between;width:100%;max-width:220px;margin-top:8px;font-size:12px;color:#657584}
+.chart-wrap{position:relative;min-height:260px}
+.update-time{font-size:11px;color:#94a1b0;position:absolute;bottom:8px;right:12px}
+@media(max-width:768px){.grid-2{grid-template-columns:1fr}}
+${extra || ""}
+</style>`;
 }
 
-// Retention policy convention: {measurement}_rp
-function rpFrom(measurement) {
-  sanitizeInfluxIdentifier(measurement);
-  return `"${measurement}_rp"."${measurement}"`;
+/** JS helper: apiFetch with credentials + X-Space header */
+function _fetchHelperJS(spaceName) {
+  const sp = _escTpl(spaceName || inscadaApi.currentSpace || "default_space");
+  return `
+function apiFetch(url){
+  return fetch(url,{method:"GET",credentials:"include",headers:{"X-Space":"${sp}",Accept:"application/json"}}).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()});
+}`;
 }
 
-function influxQuery(query, db = INFLUX_DB) {
-  return new Promise((resolve, reject) => {
-    const params = new URLSearchParams();
-    params.append("q", query);
-    if (db) params.append("db", db);
-    if (INFLUX_USER) params.append("u", INFLUX_USER);
-    if (INFLUX_PASSWORD) params.append("p", INFLUX_PASSWORD);
-    params.append("epoch", "ms");
+/** Single gauge template — doughnut 180°, color zones (green/yellow/red), auto-refresh */
+function _templateGauge(params) {
+  const { variable_name, project_id, title, unit = "", min = 0, max = 100, refresh_interval = 2000, space_name } = params;
+  const safeTitle = _escTpl(title || variable_name);
+  const safeUnit = _escTpl(unit);
+  const safeVar = _escTpl(variable_name);
 
-    const protocol = INFLUX_USE_SSL ? https : http;
-    const url = `${INFLUX_USE_SSL ? "https" : "http"}://${INFLUX_HOST}:${INFLUX_PORT}/query?${params.toString()}`;
-    const parsedUrl = new URL(url);
+  return `${_templateHead(safeTitle)}
+${_templateStyles("")}
+</head>
+<body>
+<div class="dashboard-header">
+  <div class="live-dot"></div>
+  <h1>${safeTitle}</h1>
+</div>
+<div class="dashboard-body">
+  <div class="card">
+    <div class="card-title">${safeVar}</div>
+    <div class="gauge-wrap">
+      <canvas id="gauge" width="260" height="160"></canvas>
+      <div class="gauge-value" id="gaugeVal">--</div>
+      <div class="gauge-unit">${safeUnit}</div>
+      <div class="gauge-range"><span>${_escTpl(min)}</span><span>${_escTpl(max)}</span></div>
+    </div>
+    <div class="update-time" id="updateTime"></div>
+  </div>
+</div>
+<script>
+${_fetchHelperJS(space_name)}
+var gaugeMin=${JSON.stringify(min)},gaugeMax=${JSON.stringify(max)};
+var chart,dataRef={value:null};
 
-    const req = protocol.request({
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port,
-      path: `${parsedUrl.pathname}${parsedUrl.search}`,
-      method: "GET",
-      headers: { Accept: "application/json" },
-      rejectUnauthorized: false,
-    }, (res) => {
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => {
-        try {
-          const json = JSON.parse(data);
-          json.error ? reject(new Error(json.error)) : resolve(json);
-        } catch (e) { reject(new Error(`Parse hatası: ${data.substring(0, 500)}`)); }
-      });
-    });
-    req.on("error", (err) => reject(new Error(`Bağlantı hatası: ${err.message}`)));
-    req.setTimeout(30000, () => { req.destroy(); reject(new Error("Zaman aşımı")); });
-    req.end();
+function createGauge(val){
+  var pct=Math.max(0,Math.min(1,(val-gaugeMin)/(gaugeMax-gaugeMin)));
+  var color=pct<0.6?"#55CD97":pct<0.85?"#FDBF4C":"#FF5C4C";
+  var ctx=document.getElementById("gauge").getContext("2d");
+  chart=new Chart(ctx,{
+    type:"doughnut",
+    data:{datasets:[{data:[pct,1-pct],backgroundColor:[color,"#EDEFF0"],borderWidth:0}]},
+    options:{
+      responsive:false,
+      rotation:-90,
+      circumference:180,
+      cutout:"78%",
+      plugins:{tooltip:{enabled:false},legend:{display:false}},
+      animation:{duration:600}
+    }
   });
 }
 
-function formatInfluxResult(response) {
-  if (!response.results || !response.results.length) return [];
-  const results = [];
-  for (const result of response.results) {
-    if (result.error) { results.push({ error: result.error }); continue; }
-    if (!result.series) { results.push({ data: [], message: "Veri bulunamadı" }); continue; }
-    for (const series of result.series) {
-      const rows = (series.values || []).map((row) => {
-        const obj = {};
-        series.columns.forEach((col, i) => {
-          obj[col] = col === "time" ? new Date(row[i]).toISOString() : row[i];
-        });
-        return obj;
-      });
-      results.push({ measurement: series.name, tags: series.tags || {}, columns: series.columns, row_count: rows.length, data: rows });
-    }
+function updateGauge(val){
+  if(val==null)return;
+  dataRef.value=val;
+  var pct=Math.max(0,Math.min(1,(val-gaugeMin)/(gaugeMax-gaugeMin)));
+  var color=pct<0.6?"#55CD97":pct<0.85?"#FDBF4C":"#FF5C4C";
+  document.getElementById("gaugeVal").textContent=parseFloat(val).toFixed(2);
+  if(chart){
+    chart.data.datasets[0].data=[pct,1-pct];
+    chart.data.datasets[0].backgroundColor=[color,"#EDEFF0"];
+    chart.update("none");
   }
-  return results;
+  document.getElementById("updateTime").textContent=new Date().toLocaleTimeString("tr-TR");
 }
+
+function fetchValue(){
+  apiFetch("/api/variables/value?projectId=${project_id}&name=${encodeURIComponent(variable_name)}")
+    .then(function(d){var v=d.value!=null?d.value:(d.data?d.data.value:null);updateGauge(v);})
+    .catch(function(){});
+}
+
+createGauge(0);
+fetchValue();
+setInterval(fetchValue,${JSON.stringify(refresh_interval)});
+</script>
+</body>
+</html>`;
+}
+
+/** Single line chart template — sliding window, auto-refresh */
+function _templateLineChart(params) {
+  const { variable_name, project_id, title, unit = "", time_range = "1h", refresh_interval = 2000, space_name } = params;
+  const safeTitle = _escTpl(title || variable_name);
+  const safeUnit = _escTpl(unit);
+  const safeVar = _escTpl(variable_name);
+  // Convert time_range like "1h" to ms for sliding window
+  const trMatch = (time_range || "1h").match(/^(\d+)([smhdw])$/);
+  const trMultipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000 };
+  const windowMs = trMatch ? parseInt(trMatch[1]) * (trMultipliers[trMatch[2]] || 3600000) : 3600000;
+
+  return `${_templateHead(safeTitle)}
+${_templateStyles("")}
+</head>
+<body>
+<div class="dashboard-header">
+  <div class="live-dot"></div>
+  <h1>${safeTitle}</h1>
+</div>
+<div class="dashboard-body">
+  <div class="card">
+    <div class="card-title">${safeVar} (${_escTpl(time_range)})</div>
+    <div class="chart-wrap">
+      <canvas id="lineChart"></canvas>
+    </div>
+    <div class="update-time" id="updateTime"></div>
+  </div>
+</div>
+<script>
+${_fetchHelperJS(space_name)}
+var windowMs=${JSON.stringify(windowMs)};
+var chartData=[];
+var chart;
+
+function createChart(){
+  var ctx=document.getElementById("lineChart").getContext("2d");
+  chart=new Chart(ctx,{
+    type:"line",
+    data:{datasets:[{label:"${safeVar}",data:chartData,borderColor:"#1CA1C1",backgroundColor:"rgba(28,161,193,0.08)",borderWidth:2,fill:true,pointRadius:0,tension:0.3}]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{type:"time",time:{tooltipFormat:"HH:mm:ss",displayFormats:{second:"HH:mm:ss",minute:"HH:mm",hour:"HH:mm"}},grid:{color:"#EDEFF0"},ticks:{color:"#657584",maxTicksLimit:8}},
+        y:{grid:{color:"#EDEFF0"},ticks:{color:"#657584"},title:{display:${unit ? "true" : "false"},text:"${safeUnit}",color:"#475466"}}
+      },
+      plugins:{legend:{display:false},tooltip:{mode:"index",intersect:false}},
+      animation:{duration:0}
+    }
+  });
+}
+
+function fetchValue(){
+  apiFetch("/api/variables/value?projectId=${project_id}&name=${encodeURIComponent(variable_name)}")
+    .then(function(d){
+      var v=d.value!=null?d.value:(d.data?d.data.value:null);
+      if(v==null)return;
+      var now=Date.now();
+      chartData.push({x:now,y:parseFloat(v)});
+      var cutoff=now-windowMs;
+      while(chartData.length>0&&chartData[0].x<cutoff)chartData.shift();
+      if(chart)chart.update("none");
+      document.getElementById("updateTime").textContent=new Date().toLocaleTimeString("tr-TR");
+    })
+    .catch(function(){});
+}
+
+createChart();
+fetchValue();
+setInterval(fetchValue,${JSON.stringify(refresh_interval)});
+</script>
+</body>
+</html>`;
+}
+
+/** Gauge + line chart side by side — single fetch updates both */
+function _templateGaugeAndChart(params) {
+  const { variable_name, project_id, title, unit = "", min = 0, max = 100, time_range = "1h", refresh_interval = 2000, space_name } = params;
+  const safeTitle = _escTpl(title || variable_name);
+  const safeUnit = _escTpl(unit);
+  const safeVar = _escTpl(variable_name);
+  const trMatch = (time_range || "1h").match(/^(\d+)([smhdw])$/);
+  const trMultipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000 };
+  const windowMs = trMatch ? parseInt(trMatch[1]) * (trMultipliers[trMatch[2]] || 3600000) : 3600000;
+
+  return `${_templateHead(safeTitle)}
+${_templateStyles("")}
+</head>
+<body>
+<div class="dashboard-header">
+  <div class="live-dot"></div>
+  <h1>${safeTitle}</h1>
+</div>
+<div class="dashboard-body">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">${safeVar} — Anlık</div>
+      <div class="gauge-wrap">
+        <canvas id="gauge" width="260" height="160"></canvas>
+        <div class="gauge-value" id="gaugeVal">--</div>
+        <div class="gauge-unit">${safeUnit}</div>
+        <div class="gauge-range"><span>${_escTpl(min)}</span><span>${_escTpl(max)}</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">${safeVar} — Trend (${_escTpl(time_range)})</div>
+      <div class="chart-wrap">
+        <canvas id="lineChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="update-time" id="updateTime" style="text-align:right;margin-top:8px"></div>
+</div>
+<script>
+${_fetchHelperJS(space_name)}
+var gaugeMin=${JSON.stringify(min)},gaugeMax=${JSON.stringify(max)},windowMs=${JSON.stringify(windowMs)};
+var gaugeChart,lineChart,chartData=[];
+
+function initGauge(){
+  var ctx=document.getElementById("gauge").getContext("2d");
+  gaugeChart=new Chart(ctx,{
+    type:"doughnut",
+    data:{datasets:[{data:[0,1],backgroundColor:["#55CD97","#EDEFF0"],borderWidth:0}]},
+    options:{responsive:false,rotation:-90,circumference:180,cutout:"78%",plugins:{tooltip:{enabled:false},legend:{display:false}},animation:{duration:600}}
+  });
+}
+
+function initLine(){
+  var ctx=document.getElementById("lineChart").getContext("2d");
+  lineChart=new Chart(ctx,{
+    type:"line",
+    data:{datasets:[{label:"${safeVar}",data:chartData,borderColor:"#1CA1C1",backgroundColor:"rgba(28,161,193,0.08)",borderWidth:2,fill:true,pointRadius:0,tension:0.3}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{type:"time",time:{tooltipFormat:"HH:mm:ss",displayFormats:{second:"HH:mm:ss",minute:"HH:mm",hour:"HH:mm"}},grid:{color:"#EDEFF0"},ticks:{color:"#657584",maxTicksLimit:8}},
+        y:{grid:{color:"#EDEFF0"},ticks:{color:"#657584"},title:{display:${unit ? "true" : "false"},text:"${safeUnit}",color:"#475466"}}
+      },
+      plugins:{legend:{display:false},tooltip:{mode:"index",intersect:false}},animation:{duration:0}
+    }
+  });
+}
+
+function fetchAndUpdate(){
+  apiFetch("/api/variables/value?projectId=${project_id}&name=${encodeURIComponent(variable_name)}")
+    .then(function(d){
+      var v=d.value!=null?d.value:(d.data?d.data.value:null);
+      if(v==null)return;
+      v=parseFloat(v);
+      // gauge
+      var pct=Math.max(0,Math.min(1,(v-gaugeMin)/(gaugeMax-gaugeMin)));
+      var color=pct<0.6?"#55CD97":pct<0.85?"#FDBF4C":"#FF5C4C";
+      document.getElementById("gaugeVal").textContent=v.toFixed(2);
+      if(gaugeChart){gaugeChart.data.datasets[0].data=[pct,1-pct];gaugeChart.data.datasets[0].backgroundColor=[color,"#EDEFF0"];gaugeChart.update("none");}
+      // line
+      var now=Date.now();
+      chartData.push({x:now,y:v});
+      var cutoff=now-windowMs;
+      while(chartData.length>0&&chartData[0].x<cutoff)chartData.shift();
+      if(lineChart)lineChart.update("none");
+      document.getElementById("updateTime").textContent="Son güncelleme: "+new Date().toLocaleTimeString("tr-TR");
+    })
+    .catch(function(){});
+}
+
+initGauge();initLine();
+fetchAndUpdate();
+setInterval(fetchAndUpdate,${JSON.stringify(refresh_interval)});
+</script>
+</body>
+</html>`;
+}
+
+/** Multi-variable line chart — uses /api/variables/values for batch fetch, legend enabled */
+function _templateMultiChart(params) {
+  const { variables = [], project_id, title, unit = "", time_range = "1h", refresh_interval = 2000, space_name } = params;
+  const safeTitle = _escTpl(title || "Multi Chart");
+  const safeUnit = _escTpl(unit);
+  const trMatch = (time_range || "1h").match(/^(\d+)([smhdw])$/);
+  const trMultipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000 };
+  const windowMs = trMatch ? parseInt(trMatch[1]) * (trMultipliers[trMatch[2]] || 3600000) : 3600000;
+
+  const defaultColors = ["#1CA1C1", "#55CD97", "#FDBF4C", "#FF5C4C", "#a855f7", "#1992af", "#f97316", "#17839d"];
+  const varsJson = JSON.stringify(variables.map((v, i) => ({
+    name: v.name,
+    label: v.label || v.name,
+    color: v.color || defaultColors[i % defaultColors.length],
+  })));
+  const varNames = variables.map(v => v.name).join(",");
+
+  return `${_templateHead(safeTitle)}
+${_templateStyles("")}
+</head>
+<body>
+<div class="dashboard-header">
+  <div class="live-dot"></div>
+  <h1>${safeTitle}</h1>
+</div>
+<div class="dashboard-body">
+  <div class="card">
+    <div class="card-title">${_escTpl(variables.length)} Değişken — ${_escTpl(time_range)}</div>
+    <div class="chart-wrap">
+      <canvas id="multiChart"></canvas>
+    </div>
+    <div class="update-time" id="updateTime"></div>
+  </div>
+</div>
+<script>
+${_fetchHelperJS(space_name)}
+var VARS=${varsJson};
+var windowMs=${JSON.stringify(windowMs)};
+var seriesData={};
+VARS.forEach(function(v){seriesData[v.name]=[];});
+var chart;
+
+function initChart(){
+  var datasets=VARS.map(function(v){
+    return{label:v.label,data:seriesData[v.name],borderColor:v.color,backgroundColor:"transparent",borderWidth:2,pointRadius:0,tension:0.3};
+  });
+  var ctx=document.getElementById("multiChart").getContext("2d");
+  chart=new Chart(ctx,{
+    type:"line",
+    data:{datasets:datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{type:"time",time:{tooltipFormat:"HH:mm:ss",displayFormats:{second:"HH:mm:ss",minute:"HH:mm",hour:"HH:mm"}},grid:{color:"#EDEFF0"},ticks:{color:"#657584",maxTicksLimit:8}},
+        y:{grid:{color:"#EDEFF0"},ticks:{color:"#657584"},title:{display:${unit ? "true" : "false"},text:"${safeUnit}",color:"#475466"}}
+      },
+      plugins:{legend:{display:true,labels:{color:"#475466"}},tooltip:{mode:"index",intersect:false}},
+      animation:{duration:0}
+    }
+  });
+}
+
+function fetchValues(){
+  apiFetch("/api/variables/values?projectId=${project_id}&names=${encodeURIComponent(varNames)}")
+    .then(function(d){
+      var now=Date.now();
+      VARS.forEach(function(v){
+        var entry=d[v.name]||d[v.label];
+        if(entry){
+          var val=entry.value!=null?entry.value:(entry.data?entry.data.value:null);
+          if(val!=null)seriesData[v.name].push({x:now,y:parseFloat(val)});
+        }
+        var cutoff=now-windowMs;
+        while(seriesData[v.name].length>0&&seriesData[v.name][0].x<cutoff)seriesData[v.name].shift();
+      });
+      if(chart)chart.update("none");
+      document.getElementById("updateTime").textContent=new Date().toLocaleTimeString("tr-TR");
+    })
+    .catch(function(){});
+}
+
+initChart();
+fetchValues();
+setInterval(fetchValues,${JSON.stringify(refresh_interval)});
+</script>
+</body>
+</html>`;
+}
+
+/** Map template name to generator function */
+const MENU_TEMPLATES = {
+  gauge: _templateGauge,
+  line_chart: _templateLineChart,
+  gauge_and_chart: _templateGaugeAndChart,
+  multi_chart: _templateMultiChart,
+};
 
 // ============================================================
 // Handlers
 // ============================================================
 const handlers = {
-  // --- PostgreSQL ---
+  // --- Space Management ---
+  async set_space({ space_name }) {
+    inscadaApi.setSpace(space_name);
+    return { success: true, message: `X-Space header "${space_name}" olarak ayarlandı. Bundan sonraki tüm API istekleri bu space üzerinden yapılacak.`, current_space: space_name };
+  },
+
+  // --- inSCADA REST API (data) ---
   async list_spaces({ search }) {
-    let q = `SELECT space_id, name, insert_user, insert_dttm FROM inscada.space`;
-    const p = [];
-    if (search) { q += ` WHERE LOWER(name) LIKE LOWER($1)`; p.push(`%${search}%`); }
-    return (await pool.query(q + ` ORDER BY name`, p)).rows;
+    const spaces = await inscadaApi.request("GET", "/api/spaces");
+    let result = Array.isArray(spaces) ? spaces.map(s => ({
+      space_id: s.id, name: s.name,
+      insert_user: s.createdBy || null, insert_dttm: s.creationDate || null,
+    })) : [];
+    if (search) {
+      const s = search.toLowerCase();
+      result = result.filter(r => r.name && r.name.toLowerCase().includes(s));
+    }
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    return result;
   },
 
   async list_projects({ space_id, space_name, search }) {
-    let q = `SELECT p.project_id, p.name, p.dsc, p.active_flag, s.name as space_name FROM inscada.project p JOIN inscada.space s ON s.space_id = p.space_id WHERE 1=1`;
-    const p = []; let i = 1;
-    if (space_id) { q += ` AND p.space_id = $${i++}`; p.push(space_id); }
-    if (space_name) { q += ` AND LOWER(s.name) LIKE LOWER($${i++})`; p.push(`%${space_name}%`); }
-    if (search) { q += ` AND LOWER(p.name) LIKE LOWER($${i++})`; p.push(`%${search}%`); }
-    return (await pool.query(q + ` ORDER BY s.name, p.name`, p)).rows;
+    const projects = await inscadaApi.request("GET", "/api/projects");
+    let result = Array.isArray(projects) ? projects.map(p => ({
+      project_id: p.id, name: p.name, dsc: p.dsc || null, active_flag: p.isActive,
+    })) : [];
+    if (search) {
+      const s = search.toLowerCase();
+      result = result.filter(r => r.name && r.name.toLowerCase().includes(s));
+    }
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    return result;
+  },
+
+  async list_variables({ project_id, search, connection_id, page_size, page_number }) {
+    const size = Math.min(page_size || 500, 2000);
+    const page = page_number || 0;
+
+    let result;
+    if (connection_id) {
+      // Connection filtresi — POST /api/variables/filter/pages
+      const filter = { projectId: project_id, connectionId: connection_id };
+      result = await inscadaApi.request("POST",
+        `/api/variables/filter/pages?size=${size}&page=${page}&paged=true`, filter);
+    } else {
+      // Tüm değişkenler — GET /api/variables/pages
+      result = await inscadaApi.request("GET",
+        `/api/variables/pages?projectId=${project_id}&size=${size}&page=${page}&paged=true`);
+    }
+
+    const content = Array.isArray(result.content) ? result.content : (Array.isArray(result) ? result : []);
+    let variables = content.map(v => ({
+      variable_id: v.id, name: v.name, dsc: v.dsc || null,
+      unit: v.unit || null, code: v.code || null,
+      project_id: v.projectId, connection_id: v.connectionId || null,
+      is_active: v.isActive != null ? v.isActive : v.active_flag,
+      eng_zero_scale: v.engZeroScale, eng_full_scale: v.engFullScale,
+      log_type: v.logType || null,
+    }));
+
+    // Client-side arama (API filtresi güvenilir olmayabilir)
+    if (search) {
+      const s = search.toLowerCase();
+      variables = variables.filter(v =>
+        (v.name && v.name.toLowerCase().includes(s)) ||
+        (v.dsc && v.dsc.toLowerCase().includes(s)) ||
+        (v.code && v.code.toLowerCase().includes(s))
+      );
+    }
+
+    return {
+      variables,
+      total: search ? variables.length : (result.totalElements || variables.length),
+      page: result.number || page,
+      page_size: result.size || size,
+      total_pages: search ? 1 : (result.totalPages || 1),
+    };
   },
 
   async list_scripts({ project_id, project_name, space_name, search }) {
-    let q = `SELECT sc.script_id, sc.name, sc.dsc, sc.sch_type, p.name as project_name, s.name as space_name, sc.version_dttm, LENGTH(sc.code) as code_length FROM inscada.script sc JOIN inscada.project p ON p.project_id = sc.project_id JOIN inscada.space s ON s.space_id = sc.space_id WHERE 1=1`;
-    const p = []; let i = 1;
-    if (project_id) { q += ` AND sc.project_id = $${i++}`; p.push(project_id); }
-    if (project_name) { q += ` AND LOWER(p.name) LIKE LOWER($${i++})`; p.push(`%${project_name}%`); }
-    if (space_name) { q += ` AND LOWER(s.name) LIKE LOWER($${i++})`; p.push(`%${space_name}%`); }
-    if (search) { q += ` AND LOWER(sc.name) LIKE LOWER($${i++})`; p.push(`%${search}%`); }
-    return (await pool.query(q + ` ORDER BY s.name, p.name, sc.name`, p)).rows;
+    let path = "/api/scripts/summary";
+    if (project_id) path += `?projectId=${project_id}`;
+    const scripts = await inscadaApi.request("GET", path);
+    let result = Array.isArray(scripts) ? scripts.map(s => ({
+      script_id: s.id, name: s.name, dsc: s.dsc || null,
+      sch_type: s.type || null, project_id: s.projectId, version_dttm: s.lastModifiedDate || null,
+    })) : [];
+    if (search) {
+      const s = search.toLowerCase();
+      result = result.filter(r => r.name && r.name.toLowerCase().includes(s));
+    }
+    if (project_name && !project_id) {
+      const projects = await inscadaApi.request("GET", "/api/projects");
+      const ids = new Set(projects.filter(p => p.name && p.name.toLowerCase().includes(project_name.toLowerCase())).map(p => p.id));
+      result = result.filter(r => ids.has(r.project_id));
+    }
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    return result;
   },
 
   async get_script({ script_id, script_name, project_name }) {
-    let q = `SELECT sc.*, p.name as project_name, s.name as space_name FROM inscada.script sc JOIN inscada.project p ON p.project_id = sc.project_id JOIN inscada.space s ON s.space_id = sc.space_id WHERE 1=1`;
-    const p = []; let i = 1;
-    if (script_id) { q += ` AND sc.script_id = $${i++}`; p.push(script_id); }
-    if (script_name) { q += ` AND LOWER(sc.name) LIKE LOWER($${i++})`; p.push(`%${script_name}%`); }
-    if (project_name) { q += ` AND LOWER(p.name) LIKE LOWER($${i++})`; p.push(`%${project_name}%`); }
-    const result = await pool.query(q, p);
-    if (result.rows.length === 0) return { error: "Script bulunamadı." };
-    if (result.rows.length > 1) return { warning: `${result.rows.length} script bulundu:`, scripts: result.rows.map(r => ({ script_id: r.script_id, name: r.name, project: r.project_name, space: r.space_name })) };
-    return result.rows[0];
-  },
-
-  async update_script({ script_id, code, version_user = "claude" }) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const cur = await client.query(`SELECT script_id, name, code FROM inscada.script WHERE script_id = $1`, [script_id]);
-      if (!cur.rows.length) { await client.query("ROLLBACK"); return { error: "Script bulunamadı." }; }
-      const old = cur.rows[0];
-      await client.query(`INSERT INTO inscada.script_history (script_id, name, code, changed_by, changed_at, change_reason) VALUES ($1,$2,$3,$4,NOW(),$5)`, [script_id, old.name, old.code, version_user, `Update by ${version_user}`]);
-      await client.query(`UPDATE inscada.script SET code=$1, version_user=$2, version_dttm=NOW() WHERE script_id=$3`, [code, version_user, script_id]);
-      await client.query("COMMIT");
-      return { success: true, script_id, name: old.name, message: `"${old.name}" güncellendi ve yedeklendi.` };
-    } catch (e) { await client.query("ROLLBACK"); throw e; }
-    finally { client.release(); }
-  },
-
-  async get_script_history({ script_id, limit = 10 }) {
-    return (await pool.query(`SELECT history_id, script_id, name, changed_by, changed_at, change_reason, LENGTH(code) as code_length FROM inscada.script_history WHERE script_id=$1 ORDER BY changed_at DESC LIMIT $2`, [script_id, limit])).rows;
-  },
-
-  async restore_script({ history_id }) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const h = await client.query(`SELECT * FROM inscada.script_history WHERE history_id=$1`, [history_id]);
-      if (!h.rows.length) { await client.query("ROLLBACK"); return { error: "History bulunamadı." }; }
-      const rec = h.rows[0];
-      const cur = await client.query(`SELECT code FROM inscada.script WHERE script_id=$1`, [rec.script_id]);
-      await client.query(`INSERT INTO inscada.script_history (script_id,name,code,changed_by,changed_at,change_reason) VALUES ($1,$2,$3,'claude',NOW(),$4)`, [rec.script_id, rec.name, cur.rows[0].code, `Before restore from ${history_id}`]);
-      await client.query(`UPDATE inscada.script SET code=$1, version_user='claude', version_dttm=NOW() WHERE script_id=$2`, [rec.code, rec.script_id]);
-      await client.query("COMMIT");
-      return { success: true, message: `"${rec.name}" geri yüklendi.` };
-    } catch (e) { await client.query("ROLLBACK"); throw e; }
-    finally { client.release(); }
-  },
-
-  async search_in_scripts({ search_text, space_name, project_name }) {
-    let q = `SELECT sc.script_id, sc.name, p.name as project_name, s.name as space_name, SUBSTRING(sc.code FROM GREATEST(1, POSITION(LOWER($1) IN LOWER(sc.code))-100) FOR 250) as snippet FROM inscada.script sc JOIN inscada.project p ON p.project_id=sc.project_id JOIN inscada.space s ON s.space_id=sc.space_id WHERE LOWER(sc.code) LIKE LOWER($1)`;
-    const p = [`%${search_text}%`]; let i = 2;
-    if (space_name) { q += ` AND LOWER(s.name) LIKE LOWER($${i++})`; p.push(`%${space_name}%`); }
-    if (project_name) { q += ` AND LOWER(p.name) LIKE LOWER($${i++})`; p.push(`%${project_name}%`); }
-    const result = await pool.query(q + ` LIMIT 50`, p);
-    return { count: result.rows.length, results: result.rows };
-  },
-
-  async run_query({ query }) {
-    const t = query.trim().toUpperCase();
-    if (!t.startsWith("SELECT") && !t.startsWith("WITH")) return { error: "Sadece SELECT izinli." };
-
-    if (query.includes(";")) return { error: "Birden fazla sorgu çalıştırılamaz." };
-    if (/--/.test(query) || /\/\*/.test(query)) return { error: "SQL yorumları kullanılamaz." };
-
-    for (const kw of ["INSERT","UPDATE","DELETE","DROP","ALTER","TRUNCATE","CREATE","GRANT","REVOKE","EXECUTE","EXEC"]) {
-      if (new RegExp(`\\b${kw}\\b`).test(t)) return { error: `'${kw}' kullanılamaz.` };
+    const mapScript = (s) => ({
+      script_id: s.id, name: s.name, dsc: s.dsc || null,
+      code: s.code || "", sch_type: s.type, project_id: s.projectId,
+      version_dttm: s.lastModifiedDate || null, version_user: s.lastModifiedBy || null,
+    });
+    if (script_id) {
+      const s = await inscadaApi.request("GET", `/api/scripts/${script_id}`);
+      return mapScript(s);
     }
-    const r = await pool.query(query);
-    return { rowCount: r.rowCount, rows: r.rows };
-  },
-
-  // --- InfluxDB ---
-  async influx_list_databases() { return formatInfluxResult(await influxQuery("SHOW DATABASES", "")); },
-
-  async influx_list_measurements({ database, filter }) {
-    let q = "SHOW MEASUREMENTS";
-    if (filter) q += ` WITH MEASUREMENT =~ ${filter}`;
-    return formatInfluxResult(await influxQuery(q, database || INFLUX_DB));
-  },
-
-  async influx_show_tag_keys({ measurement, database }) {
-    return formatInfluxResult(await influxQuery(`SHOW TAG KEYS FROM ${rpFrom(measurement)}`, database || INFLUX_DB));
-  },
-
-  async influx_show_tag_values({ measurement, tag_key, database }) {
-    return formatInfluxResult(await influxQuery(`SHOW TAG VALUES FROM ${rpFrom(measurement)} WITH KEY = "${sanitizeInfluxIdentifier(tag_key)}"`, database || INFLUX_DB));
-  },
-
-  async influx_show_field_keys({ measurement, database }) {
-    return formatInfluxResult(await influxQuery(`SHOW FIELD KEYS FROM ${rpFrom(measurement)}`, database || INFLUX_DB));
-  },
-
-  async influx_show_retention_policies({ database }) {
-    const db = database || INFLUX_DB;
-    return formatInfluxResult(await influxQuery(`SHOW RETENTION POLICIES ON "${db}"`, db));
-  },
-
-  async influx_query({ query, database }) {
-    const t = query.trim().toUpperCase();
-    if (!t.startsWith("SELECT") && !t.startsWith("SHOW")) return { error: "Sadece SELECT/SHOW izinli." };
-
-    if (query.includes(";")) return { error: "Birden fazla sorgu çalıştırılamaz." };
-    if (/--/.test(query) || /\/\*/.test(query)) return { error: "Yorumlar kullanılamaz." };
-
-    for (const kw of ["INSERT","DELETE","DROP","ALTER","CREATE","INTO","GRANT","REVOKE"]) {
-      if (new RegExp(`\\b${kw}\\b`).test(t)) return { error: `'${kw}' kullanılamaz.` };
+    // Search by name
+    const scripts = await inscadaApi.request("GET", "/api/scripts/summary");
+    let matches = Array.isArray(scripts) ? scripts : [];
+    if (script_name) {
+      const sn = script_name.toLowerCase();
+      matches = matches.filter(sc => sc.name && sc.name.toLowerCase().includes(sn));
     }
-    return formatInfluxResult(await influxQuery(query, database || INFLUX_DB));
+    if (project_name) {
+      const projects = await inscadaApi.request("GET", "/api/projects");
+      const ids = new Set(projects.filter(p => p.name && p.name.toLowerCase().includes(project_name.toLowerCase())).map(p => p.id));
+      matches = matches.filter(sc => ids.has(sc.projectId));
+    }
+    if (!matches.length) return { error: "Script bulunamadı." };
+    if (matches.length > 1) return { warning: `${matches.length} script bulundu:`, scripts: matches.map(r => ({ script_id: r.id, name: r.name, project_id: r.projectId })) };
+    const full = await inscadaApi.request("GET", `/api/scripts/${matches[0].id}`);
+    return mapScript(full);
   },
 
-  async influx_stats({ measurement, field = "value", time_range = "24h", where_clause, group_by, database }) {
-    const db = database || INFLUX_DB;
-    const sf = sanitizeInfluxIdentifier(field);
-    const str = sanitizeInfluxTimeRange(time_range);
-    let q = `SELECT count("${sf}") as count, mean("${sf}") as mean, min("${sf}") as min, max("${sf}") as max, stddev("${sf}") as stddev, last("${sf}") as last_value FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
-    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
-    if (group_by) q += ` GROUP BY "${sanitizeInfluxIdentifier(group_by)}"`;
-    return { measurement, field, time_range, statistics: formatInfluxResult(await influxQuery(q, db)) };
+  async update_script({ script_id, code }) {
+    await inscadaApi.request("PATCH", `/api/scripts/${script_id}/code`, code);
+    const updated = await inscadaApi.request("GET", `/api/scripts/${script_id}`);
+    return { success: true, script_id: updated.id, name: updated.name, message: `"${updated.name}" güncellendi.` };
   },
 
-  async influx_explore({ measurement, database }) {
-    const db = database || INFLUX_DB;
-    const info = { measurement };
-    const tagKeys = formatInfluxResult(await influxQuery(`SHOW TAG KEYS FROM ${rpFrom(measurement)}`, db));
-    info.tag_keys = tagKeys;
-    info.field_keys = formatInfluxResult(await influxQuery(`SHOW FIELD KEYS FROM ${rpFrom(measurement)}`, db));
-    if (tagKeys.length > 0 && tagKeys[0].data) {
-      info.tag_values = {};
-      for (const row of tagKeys[0].data) {
-        if (row.tagKey) {
-          const v = formatInfluxResult(await influxQuery(`SHOW TAG VALUES FROM ${rpFrom(measurement)} WITH KEY = "${row.tagKey}"`, db));
-          if (v.length > 0 && v[0].data) info.tag_values[row.tagKey] = v[0].data.map(x => x.value).slice(0, 50);
-        }
+  async list_connections({ project_id, search, include_status }) {
+    let path = "/api/connections";
+    if (project_id) path += `?projectId=${project_id}`;
+    const conns = await inscadaApi.request("GET", path);
+    let result = Array.isArray(conns) ? conns.map(c => ({
+      conn_id: c.id, name: c.name, dsc: c.dsc || null,
+      protocol: c.protocol || null, ip: c.ip || null, port: c.port || null,
+      project_id: c.projectId,
+    })) : [];
+    if (search) {
+      const s = search.toLowerCase();
+      result = result.filter(r => r.name && r.name.toLowerCase().includes(s));
+    }
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    if (include_status && result.length) {
+      const ids = result.map(r => r.conn_id).join(",");
+      const statuses = await inscadaApi.request("GET", `/api/connections/status?connectionIds=${encodeURIComponent(ids)}`);
+      for (const r of result) {
+        r.status = (statuses && statuses[String(r.conn_id)]) || "Unknown";
       }
     }
-    info.first_record = formatInfluxResult(await influxQuery(`SELECT * FROM ${rpFrom(measurement)} LIMIT 1`, db));
-    info.last_record = formatInfluxResult(await influxQuery(`SELECT * FROM ${rpFrom(measurement)} ORDER BY time DESC LIMIT 1`, db));
-    info.total_count = formatInfluxResult(await influxQuery(`SELECT count(*) FROM ${rpFrom(measurement)}`, db));
-    return info;
+    return result;
   },
 
-  // --- Charts (veri döner, frontend çizer) ---
-  async chart_line({ measurement, field = "value", time_range = "24h", where_clause, group_by_tag, group_by_time, title, y_label, database }) {
-    const db = database || INFLUX_DB;
-    const sf = sanitizeInfluxIdentifier(field);
-    const str = sanitizeInfluxTimeRange(time_range);
-    if (group_by_time) sanitizeInfluxIdentifier(group_by_time.replace(/\d+/g, "").trim() || "m");
-    if (group_by_tag) sanitizeInfluxIdentifier(group_by_tag);
-    let sel = group_by_time ? `mean("${sf}") as "${sf}"` : `"${sf}"`;
-    let q = `SELECT ${sel} FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
-    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
-    const gp = [];
-    if (group_by_time) gp.push(`time(${group_by_time})`);
-    if (group_by_tag) gp.push(`"${group_by_tag}"`);
-    if (gp.length) q += ` GROUP BY ${gp.join(",")}`;
-    if (group_by_time) q += ` fill(none)`;
-
-    const influxResults = formatInfluxResult(await influxQuery(q, db));
-    if (!influxResults.length || influxResults.every(r => !r.data || !r.data.length)) {
-      return { error: "Veri bulunamadı.", query: q };
+  async search_in_scripts({ search_text, project_name }) {
+    const scripts = await inscadaApi.request("GET", "/api/scripts");
+    let matches = [];
+    const searchLower = search_text.toLowerCase();
+    for (const sc of (Array.isArray(scripts) ? scripts : [])) {
+      if (!sc.code) continue;
+      const idx = sc.code.toLowerCase().indexOf(searchLower);
+      if (idx === -1) continue;
+      const start = Math.max(0, idx - 100);
+      matches.push({
+        script_id: sc.id, name: sc.name, project_id: sc.projectId,
+        snippet: sc.code.substring(start, start + 250),
+      });
     }
+    if (project_name) {
+      const projects = await inscadaApi.request("GET", "/api/projects");
+      const ids = new Set(projects.filter(p => p.name && p.name.toLowerCase().includes(project_name.toLowerCase())).map(p => p.id));
+      matches = matches.filter(m => ids.has(m.project_id));
+    }
+    return { count: matches.length, results: matches.slice(0, 50) };
+  },
+
+  // --- Animations ---
+  async list_animations({ project_id, search }) {
+    const anims = await inscadaApi.request("GET", `/api/animations?projectId=${project_id}`);
+    let result = Array.isArray(anims) ? anims.map(a => ({
+      animation_id: a.id, name: a.name, dsc: a.dsc || null,
+      project_id: a.projectId, main_flag: a.mainFlag != null ? a.mainFlag : a.main_flag,
+      color: a.color || null, duration: a.duration || null,
+      play_order: a.playOrder != null ? a.playOrder : a.play_order,
+    })) : [];
+    if (search) {
+      const s = search.toLowerCase();
+      result = result.filter(r =>
+        (r.name && r.name.toLowerCase().includes(s)) ||
+        (r.dsc && r.dsc.toLowerCase().includes(s))
+      );
+    }
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    return result;
+  },
+
+  async get_animation({ animation_id, animation_name, project_id, include_svg, include_elements }) {
+    const mapAnim = (a) => ({
+      animation_id: a.id, name: a.name, dsc: a.dsc || null,
+      project_id: a.projectId, main_flag: a.mainFlag != null ? a.mainFlag : a.main_flag,
+      color: a.color || null, duration: a.duration || null,
+      play_order: a.playOrder != null ? a.playOrder : a.play_order,
+      alignment: a.alignment || null, placeholders: a.placeholders || null,
+      configs: a.configs || null,
+    });
+
+    let anim;
+    if (animation_id) {
+      anim = await inscadaApi.request("GET", `/api/animations/${animation_id}`);
+    } else if (animation_name && project_id) {
+      const anims = await inscadaApi.request("GET", `/api/animations?projectId=${project_id}`);
+      const sn = animation_name.toLowerCase();
+      const matches = (Array.isArray(anims) ? anims : []).filter(a => a.name && a.name.toLowerCase().includes(sn));
+      if (!matches.length) return { error: "Animasyon bulunamadı." };
+      if (matches.length > 1) return { warning: `${matches.length} animasyon bulundu:`, animations: matches.map(a => ({ animation_id: a.id, name: a.name })) };
+      anim = await inscadaApi.request("GET", `/api/animations/${matches[0].id}`);
+    } else {
+      return { error: "animation_id veya (animation_name + project_id) gerekli." };
+    }
+
+    const result = mapAnim(anim);
+
+    if (include_elements !== false) {
+      const elements = await inscadaApi.request("GET", `/api/animations/${anim.id}/elements`);
+      result.elements = Array.isArray(elements) ? elements.map(e => ({
+        element_id: e.id, name: e.name, dsc: e.dsc || null,
+        type: e.type || null, dom_id: e.domId || null,
+        expression: e.expression || null, expression_type: e.expressionType || null,
+        props: e.props || null, status_flag: e.statusFlag,
+      })) : [];
+    }
+
+    if (include_svg) {
+      try {
+        const svgResp = await inscadaApi.request("GET", `/api/animations/${anim.id}/svg`);
+        result.svg_content = typeof svgResp === "string" ? svgResp : (svgResp.raw || svgResp.svgContent || JSON.stringify(svgResp));
+      } catch { result.svg_content = null; }
+    }
+
+    return result;
+  },
+
+  // --- Charts (veri döner, frontend çizer) — REST API tabanlı ---
+  async chart_line({ variable_names, project_id, time_range = "24h", start_date, end_date, title, y_label }) {
+    if (!project_id) throw new Error("project_id gerekli.");
+    if (!variable_names) throw new Error("variable_names gerekli.");
+
+    const vars = await resolveVariableIds(project_id, variable_names);
+    let startDate = start_date, endDate = end_date;
+    if (!startDate || !endDate) {
+      const range = timeRangeToDateRange(time_range);
+      startDate = startDate || range.startDate;
+      endDate = endDate || range.endDate;
+    }
+
+    const rows = await smartFetch(vars.map(v => v.variable_id), startDate, endDate);
+    if (!rows.length) return { error: "Veri bulunamadı." };
+
+    // Verileri variable bazında grupla
+    const grouped = {};
+    for (const row of rows) {
+      if (!grouped[row.name]) grouped[row.name] = [];
+      grouped[row.name].push({ x: row.x, y: row.y });
+    }
+
+    const series = Object.entries(grouped).map(([name, data]) => ({ label: name, data }));
+    if (!series.length) return { error: "Veri bulunamadı." };
 
     return {
       __chart: true,
       chart_type: "line",
-      title: title || `${measurement} - ${field} (${time_range})`,
-      y_label: y_label || field,
-      series: influxResults.filter(r => r.data && r.data.length).map(r => ({
-        label: r.tags && Object.keys(r.tags).length ? Object.values(r.tags).join(" / ") : measurement,
-        data: r.data.map(d => ({ x: d.time, y: d[sf] })).filter(d => d.y !== null),
-      })),
-      query: q,
+      title: title || `${variable_names} (${time_range})`,
+      y_label: y_label || "Değer",
+      series,
     };
   },
 
-  async chart_bar({ measurement, field = "value", aggregation = "mean", time_range = "24h", group_by_tag, where_clause, title, y_label, database }) {
-    const db = database || INFLUX_DB;
-    const sf = sanitizeInfluxIdentifier(field);
-    const str = sanitizeInfluxTimeRange(time_range);
-    const sagg = sanitizeInfluxIdentifier(aggregation);
-    const sgt = sanitizeInfluxIdentifier(group_by_tag);
-    let q = `SELECT ${sagg}("${sf}") as "${sf}" FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
-    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
-    q += ` GROUP BY "${sgt}"`;
+  async chart_bar({ variable_names, project_id, aggregation = "mean", time_range = "24h", start_date, end_date, title, y_label }) {
+    if (!project_id) throw new Error("project_id gerekli.");
+    if (!variable_names) throw new Error("variable_names gerekli.");
 
-    const res = formatInfluxResult(await influxQuery(q, db));
-    const labels = [], values = [];
-    for (const s of res) {
-      if (s.tags && s.data && s.data.length) { labels.push(Object.values(s.tags).join("/")); values.push(s.data[0][sf] || 0); }
+    let startDate = start_date, endDate = end_date;
+    if (!startDate || !endDate) {
+      const range = timeRangeToDateRange(time_range);
+      startDate = startDate || range.startDate;
+      endDate = endDate || range.endDate;
     }
-    if (!labels.length) return { error: "Veri bulunamadı.", query: q };
+
+    const names = variable_names.split(",").map(n => n.trim()).filter(Boolean);
+    const statsData = await fetchDailyStats(project_id, names, startDate, endDate);
+
+    // İstatistikleri variable bazında grupla ve aggregation uygula
+    const aggMap = {};
+    const rows = Array.isArray(statsData) ? statsData : [];
+    for (const row of rows) {
+      const name = row.name || String(row.variableId);
+      if (!aggMap[name]) aggMap[name] = [];
+      aggMap[name].push(row);
+    }
+
+    const aggField = { mean: "avgValue", max: "maxValue", min: "minValue", sum: "sumValue", count: "countValue" }[aggregation] || "avgValue";
+    const labels = [], values = [];
+    for (const name of names) {
+      const entries = aggMap[name];
+      if (!entries || !entries.length) continue;
+      // Birden fazla gün varsa ortalama al
+      const vals = entries.map(e => e[aggField]).filter(v => v != null);
+      if (!vals.length) continue;
+      labels.push(name);
+      values.push(vals.reduce((a, b) => a + b, 0) / vals.length);
+    }
+
+    if (!labels.length) return { error: "Veri bulunamadı." };
 
     return {
       __chart: true,
       chart_type: "bar",
-      title: title || `${measurement} - ${aggregation}(${field}) by ${group_by_tag}`,
-      y_label: y_label || `${aggregation}(${field})`,
+      title: title || `${aggregation}(${variable_names}) (${time_range})`,
+      y_label: y_label || aggregation,
       labels,
       values,
-      query: q,
     };
   },
 
-  async chart_gauge({ measurement, field = "value", where_clause, min = 0, max = 100, title, unit = "", database, auto_refresh, refresh_project_id, refresh_variable_name }) {
-    const db = database || INFLUX_DB;
-    const sf = sanitizeInfluxIdentifier(field);
-    let q = `SELECT last("${sf}") as "${sf}" FROM ${rpFrom(measurement)}`;
-    if (where_clause) q += ` WHERE ${sanitizeInflux(where_clause)}`;
-    const res = formatInfluxResult(await influxQuery(q, db));
-    let val = null;
-    for (const s of res) { if (s.data && s.data.length) { val = s.data[0][sf]; break; } }
-    if (val === null) return { error: "Veri bulunamadı.", query: q };
+  async chart_gauge({ variable_name, project_id, min = 0, max = 100, title, unit = "", auto_refresh }) {
+    if (!project_id) throw new Error("project_id gerekli.");
+    if (!variable_name) throw new Error("variable_name gerekli.");
+
+    // Canlı değeri REST API'den al
+    const liveResult = await inscadaApi.request("GET", `/api/variables/value?projectId=${project_id}&name=${encodeURIComponent(variable_name)}`);
+    const val = liveResult?.value !== undefined ? liveResult.value : (liveResult?.data?.value !== undefined ? liveResult.data.value : null);
+    if (val === null || val === undefined) return { error: "Değer okunamadı." };
 
     const result = {
       __chart: true,
       chart_type: "gauge",
-      title: title || `${measurement} - ${field}`,
+      title: title || variable_name,
       value: parseFloat(val),
       min, max, unit,
-      query: q,
     };
 
-    if (auto_refresh && refresh_project_id && refresh_variable_name) {
+    if (auto_refresh) {
       result.auto_refresh = true;
-      result.refresh_project_id = refresh_project_id;
-      result.refresh_variable_name = refresh_variable_name;
+      result.refresh_project_id = project_id;
+      result.refresh_variable_name = variable_name;
     }
 
     return result;
@@ -505,10 +1161,20 @@ const handlers = {
 
   // --- inSCADA REST API ---
   async inscada_get_live_value({ project_id, variable_name }) {
+    if (!project_id) {
+      const projects = await inscadaApi.request("GET", "/api/projects");
+      if (!Array.isArray(projects) || !projects.length) return { error: "Proje bulunamadı" };
+      project_id = projects[0].id;
+    }
     return inscadaApi.request("GET", `/api/variables/value?projectId=${project_id}&name=${encodeURIComponent(variable_name)}`);
   },
 
   async inscada_get_live_values({ project_id, variable_names }) {
+    if (!project_id) {
+      const projects = await inscadaApi.request("GET", "/api/projects");
+      if (!Array.isArray(projects) || !projects.length) return { error: "Proje bulunamadı" };
+      project_id = projects[0].id;
+    }
     const names = Array.isArray(variable_names) ? variable_names.join(",") : variable_names;
     return inscadaApi.request("GET", `/api/variables/values?projectId=${project_id}&names=${encodeURIComponent(names)}`);
   },
@@ -552,26 +1218,181 @@ const handlers = {
     return inscadaApi.request("GET", path);
   },
 
-  // --- Charts (veri döner, frontend çizer) ---
-  async chart_multi({ series, time_range = "24h", group_by_time, title, y_label, database }) {
-    const db = database || INFLUX_DB;
-    const str = sanitizeInfluxTimeRange(time_range);
+  async inscada_logged_stats({ project_id, variable_names, time_range = "24h", start_date, end_date, interval = "daily" }) {
+    if (!project_id) throw new Error("project_id gerekli.");
+    if (!variable_names) throw new Error("variable_names gerekli.");
+
+    let startDate = start_date, endDate = end_date;
+    if (!startDate || !endDate) {
+      const range = timeRangeToDateRange(time_range);
+      startDate = startDate || range.startDate;
+      endDate = endDate || range.endDate;
+    }
+
+    const names = Array.isArray(variable_names) ? variable_names.join(",") : variable_names;
+
+    if (interval === "hourly") {
+      // Hourly stats: variableIds gerekli, önce resolve et
+      const vars = await resolveVariableIds(project_id, names);
+      return fetchLoggedStats(vars.map(v => v.variable_id), startDate, endDate);
+    }
+
+    // Daily stats: projectId + names ile çalışır
+    return fetchDailyStats(project_id, names, startDate, endDate);
+  },
+
+  // --- Custom Menu (inSCADA REST API) ---
+  // inSCADA content formatı: JSON {css, js, html} — düz HTML'den dönüştürme
+  _formatMenuContent(rawContent) {
+    if (!rawContent) return JSON.stringify({ css: "", js: "", html: "" });
+    // Zaten JSON formatındaysa dokunma
+    try {
+      const parsed = JSON.parse(rawContent);
+      if (parsed.html !== undefined || parsed.css !== undefined || parsed.js !== undefined) return rawContent;
+    } catch { /* JSON değil, parse et */ }
+
+    // Düz HTML'den css/js/html ayır
+    let css = "", js = "", html = rawContent;
+
+    // <style> taglerini çıkar
+    html = html.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_, content) => {
+      css += content.trim() + "\n";
+      return "";
+    });
+
+    // Sadece inline <script> taglerini çıkar, harici CDN <script src="..."> taglerini HTML'de bırak
+    html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+      // src attribute varsa harici kütüphane — HTML'de bırak
+      if (/\bsrc\s*=/i.test(attrs)) return match;
+      // Inline script — js alanına taşı
+      if (content.trim()) js += content.trim() + "\n";
+      return "";
+    });
+
+    return JSON.stringify({ css: css.trim(), js: js.trim(), html: html.trim() });
+  },
+  async list_custom_menus({ search }) {
+    const menus = await inscadaApi.request("GET", "/api/custom-menus");
+    if (!search) return menus;
+    const s = search.toLowerCase();
+    const filter = (items) => items.filter(m => m.name && m.name.toLowerCase().includes(s));
+    return Array.isArray(menus) ? filter(menus) : menus;
+  },
+
+  async get_custom_menu({ custom_menu_id }) {
+    return inscadaApi.request("GET", `/api/custom-menus/${custom_menu_id}`);
+  },
+
+  async get_custom_menu_by_name({ name }) {
+    return inscadaApi.request("GET", `/api/custom-menus/name?customMenuName=${encodeURIComponent(name)}`);
+  },
+
+  async create_custom_menu({ name, content, icon, target = "Home", position = "Bottom", menu_order = 1, parent_menu_id, second_menu_id, template, variable_name, project_id, title, unit, min, max, refresh_interval, time_range, space_name, variables }) {
+    // Template varsa şablon fonksiyonundan HTML üret
+    let finalContent = content;
+    if (template) {
+      const tplFn = MENU_TEMPLATES[template];
+      if (!tplFn) throw new Error(`Bilinmeyen template: ${template}. Geçerli: ${Object.keys(MENU_TEMPLATES).join(", ")}`);
+      if (template === "multi_chart") {
+        if (!variables || !variables.length) throw new Error("multi_chart template için variables[] gerekli.");
+        if (!project_id) throw new Error("multi_chart template için project_id gerekli.");
+      } else {
+        if (!variable_name) throw new Error(`${template} template için variable_name gerekli.`);
+        if (!project_id) throw new Error(`${template} template için project_id gerekli.`);
+      }
+      finalContent = tplFn({ variable_name, project_id, title: title || name, unit, min, max, refresh_interval, time_range, space_name, variables });
+    }
+    const body = {
+      name,
+      content: handlers._formatMenuContent(finalContent),
+      contentType: "Html",
+      icon: icon || "fas fa-industry",
+      target,
+      position,
+      menuOrder: menu_order,
+    };
+
+    // 3 seviye hiyerarşi: parent_menu_id yoksa 1. seviye, varsa 2. seviye, second_menu_id de varsa 3. seviye
+    if (parent_menu_id && second_menu_id) {
+      return inscadaApi.request("POST", `/api/custom-menus/${parent_menu_id}/second/${second_menu_id}/third`, body);
+    } else if (parent_menu_id) {
+      return inscadaApi.request("POST", `/api/custom-menus/${parent_menu_id}/second`, body);
+    }
+    return inscadaApi.request("POST", "/api/custom-menus", body);
+  },
+
+  async update_custom_menu({ custom_menu_id, name, content, icon, target, position, menu_order, parent_menu_id, second_menu_id, template, variable_name, project_id, title, unit, min, max, refresh_interval, time_range, space_name, variables }) {
+    // Template varsa şablon fonksiyonundan HTML üret
+    if (template) {
+      const tplFn = MENU_TEMPLATES[template];
+      if (!tplFn) throw new Error(`Bilinmeyen template: ${template}. Geçerli: ${Object.keys(MENU_TEMPLATES).join(", ")}`);
+      if (template === "multi_chart") {
+        if (!variables || !variables.length) throw new Error("multi_chart template için variables[] gerekli.");
+        if (!project_id) throw new Error("multi_chart template için project_id gerekli.");
+      } else {
+        if (!variable_name) throw new Error(`${template} template için variable_name gerekli.`);
+        if (!project_id) throw new Error(`${template} template için project_id gerekli.`);
+      }
+      content = tplFn({ variable_name, project_id, title: title || name, unit, min, max, refresh_interval, time_range, space_name, variables });
+    }
+    // Önce mevcut veriyi al
+    let existing;
+    if (parent_menu_id && second_menu_id) {
+      existing = await inscadaApi.request("GET", `/api/custom-menus/${parent_menu_id}/second/${second_menu_id}/third/${custom_menu_id}`);
+    } else if (parent_menu_id) {
+      existing = await inscadaApi.request("GET", `/api/custom-menus/${parent_menu_id}/second/${custom_menu_id}`);
+    } else {
+      existing = await inscadaApi.request("GET", `/api/custom-menus/${custom_menu_id}`);
+    }
+
+    const body = {
+      name: name !== undefined ? name : existing.name,
+      content: content !== undefined ? handlers._formatMenuContent(content) : existing.content,
+      contentType: "Html",
+      icon: icon !== undefined ? icon : existing.icon,
+      target: target !== undefined ? target : existing.target,
+      position: position !== undefined ? position : existing.position,
+      menuOrder: menu_order !== undefined ? menu_order : existing.menuOrder,
+    };
+
+    if (parent_menu_id && second_menu_id) {
+      return inscadaApi.request("PUT", `/api/custom-menus/${parent_menu_id}/second/${second_menu_id}/third/${custom_menu_id}`, body);
+    } else if (parent_menu_id) {
+      return inscadaApi.request("PUT", `/api/custom-menus/${parent_menu_id}/second/${custom_menu_id}`, body);
+    }
+    return inscadaApi.request("PUT", `/api/custom-menus/${custom_menu_id}`, body);
+  },
+
+  async delete_custom_menu({ custom_menu_id, parent_menu_id, second_menu_id }) {
+    if (parent_menu_id && second_menu_id) {
+      return inscadaApi.request("DELETE", `/api/custom-menus/${parent_menu_id}/second/${second_menu_id}/third/${custom_menu_id}`);
+    } else if (parent_menu_id) {
+      return inscadaApi.request("DELETE", `/api/custom-menus/${parent_menu_id}/second/${custom_menu_id}`);
+    }
+    return inscadaApi.request("DELETE", `/api/custom-menus/${custom_menu_id}`);
+  },
+
+  // --- Charts: multi seri ---
+  async chart_multi({ series, time_range = "24h", start_date, end_date, title, y_label }) {
+    if (!series || !series.length) throw new Error("series dizisi gerekli.");
+
+    let startDate = start_date, endDate = end_date;
+    if (!startDate || !endDate) {
+      const range = timeRangeToDateRange(time_range);
+      startDate = startDate || range.startDate;
+      endDate = endDate || range.endDate;
+    }
+
     const allSeries = [];
-
     for (const s of series) {
-      const f = sanitizeInfluxIdentifier(s.field || "value");
-      let sel = group_by_time ? `mean("${f}") as "${f}"` : `"${f}"`;
-      let q = `SELECT ${sel} FROM ${rpFrom(s.measurement)} WHERE time > now() - ${str}`;
-      if (s.where_clause) q += ` AND ${sanitizeInflux(s.where_clause)}`;
-      if (group_by_time) q += ` GROUP BY time(${group_by_time}) fill(none)`;
-
-      for (const r of formatInfluxResult(await influxQuery(q, db))) {
-        if (r.data && r.data.length) {
-          allSeries.push({
-            label: s.label || `${s.measurement}.${f}`,
-            data: r.data.map(d => ({ x: d.time, y: d[f] })).filter(d => d.y !== null),
-          });
-        }
+      if (!s.variable_name || !s.project_id) continue;
+      const vars = await resolveVariableIds(s.project_id, s.variable_name);
+      const rows = await smartFetch(vars.map(v => v.variable_id), startDate, endDate);
+      if (rows.length) {
+        allSeries.push({
+          label: s.label || s.variable_name,
+          data: rows.map(d => ({ x: d.x, y: d.y })),
+        });
       }
     }
 
@@ -622,61 +1443,168 @@ const handlers = {
     };
   },
 
-  async chart_forecast({ measurement, field = "value", time_range = "24h", where_clause, group_by_time, forecast_values, forecast_label, title, y_label, database }) {
-    const db = database || INFLUX_DB;
-    const sf = sanitizeInfluxIdentifier(field);
-    const str = sanitizeInfluxTimeRange(time_range);
+  async chart_forecast({ variable_names, project_id, time_range = "24h", start_date, end_date, forecast_values, forecast_label, title, y_label }) {
+    if (!project_id) throw new Error("project_id gerekli.");
+    if (!variable_names) throw new Error("variable_names gerekli.");
+    if (!forecast_values || !forecast_values.length) throw new Error("forecast_values gerekli.");
 
-    // 1) Tarihsel veriyi çek (chart_line ile aynı mantık)
-    let sel = group_by_time ? `mean("${sf}") as "${sf}"` : `"${sf}"`;
-    let q = `SELECT ${sel} FROM ${rpFrom(measurement)} WHERE time > now() - ${str}`;
-    if (where_clause) q += ` AND ${sanitizeInflux(where_clause)}`;
-    if (group_by_time) q += ` GROUP BY time(${group_by_time}) fill(none)`;
+    const vars = await resolveVariableIds(project_id, variable_names);
+    let startDate = start_date, endDate = end_date;
+    if (!startDate || !endDate) {
+      const range = timeRangeToDateRange(time_range);
+      startDate = startDate || range.startDate;
+      endDate = endDate || range.endDate;
+    }
 
-    const influxResults = formatInfluxResult(await influxQuery(q, db));
+    const rows = await smartFetch(vars.map(v => v.variable_id), startDate, endDate);
 
-    // 2) Tarihsel serileri is_forecast: false ile işaretle
+    // Tarihsel serileri is_forecast: false ile işaretle
     const allSeries = [];
-    for (const r of influxResults) {
-      if (r.data && r.data.length) {
-        allSeries.push({
-          label: r.tags && Object.keys(r.tags).length ? Object.values(r.tags).join(" / ") : measurement,
-          data: r.data.map(d => ({ x: d.time, y: d[sf] })).filter(d => d.y !== null),
-          is_forecast: false,
-        });
+    if (rows.length) {
+      const grouped = {};
+      for (const row of rows) {
+        if (!grouped[row.name]) grouped[row.name] = [];
+        grouped[row.name].push({ x: row.x, y: row.y });
+      }
+      for (const [name, data] of Object.entries(grouped)) {
+        allSeries.push({ label: name, data, is_forecast: false });
       }
     }
 
-    // 3) Tahmin serisini oluştur
-    if (forecast_values && forecast_values.length) {
-      const forecastData = forecast_values.map(p => ({ x: new Date(p.x).toISOString(), y: p.y }));
+    // Tahmin serisini oluştur
+    const forecastData = forecast_values.map(p => ({ x: new Date(p.x).toISOString(), y: p.y }));
 
-      // Köprü noktası: tarihsel serinin son noktasını tahmin serisinin başına ekle
-      if (allSeries.length > 0) {
-        const lastHistorical = allSeries[allSeries.length - 1];
-        if (lastHistorical.data.length > 0) {
-          const bridgePoint = lastHistorical.data[lastHistorical.data.length - 1];
-          forecastData.unshift({ x: bridgePoint.x, y: bridgePoint.y });
-        }
+    // Köprü noktası: tarihsel serinin son noktasını tahmin serisinin başına ekle
+    if (allSeries.length > 0) {
+      const lastHistorical = allSeries[allSeries.length - 1];
+      if (lastHistorical.data.length > 0) {
+        const bridgePoint = lastHistorical.data[lastHistorical.data.length - 1];
+        forecastData.unshift({ x: bridgePoint.x, y: bridgePoint.y });
       }
-
-      allSeries.push({
-        label: forecast_label || "Tahmin",
-        data: forecastData,
-        is_forecast: true,
-      });
     }
 
-    if (!allSeries.length) return { error: "Veri bulunamadı.", query: q };
+    allSeries.push({
+      label: forecast_label || "Tahmin",
+      data: forecastData,
+      is_forecast: true,
+    });
+
+    if (!allSeries.length) return { error: "Veri bulunamadı." };
 
     return {
       __chart: true,
       chart_type: "line",
-      title: title || `${measurement} - ${field} Tahmin (${time_range})`,
-      y_label: y_label || field,
+      title: title || `${variable_names} Tahmin (${time_range})`,
+      y_label: y_label || "Değer",
       series: allSeries,
-      query: q,
     };
+  },
+
+  // ==================== Generic API Tools ====================
+
+  async inscada_api_endpoints({ search, category, method, tag, limit: maxResults }) {
+    if (!API_INDEX.length) return { error: "API index yüklenmedi. api-docs.json dosyası bulunamadı." };
+
+    let results = API_INDEX;
+
+    // Filtreler
+    if (category) {
+      const cat = category.toLowerCase();
+      results = results.filter(ep => ep.category === cat);
+    }
+    if (method) {
+      const m = method.toUpperCase();
+      results = results.filter(ep => ep.method === m);
+    }
+    if (tag) {
+      const t = tag.toLowerCase();
+      results = results.filter(ep => ep.tag.toLowerCase().includes(t));
+    }
+    if (search) {
+      const terms = search.toLowerCase().split(/\s+/);
+      results = results.filter(ep => {
+        const text = `${ep.path} ${ep.summary} ${ep.tag} ${ep.operationId} ${ep.category}`.toLowerCase();
+        return terms.every(term => text.includes(term));
+      });
+    }
+
+    const cap = Math.min(maxResults || 30, 50);
+    const total = results.length;
+    results = results.slice(0, cap);
+
+    // Mevcut kategorileri listele (filtre yoksa)
+    const categories = !search && !category && !method && !tag
+      ? [...new Set(API_INDEX.map(ep => ep.category))].sort()
+      : undefined;
+
+    return {
+      total,
+      showing: results.length,
+      categories,
+      endpoints: results.map(ep => ({
+        method: ep.method,
+        path: ep.path,
+        summary: ep.summary,
+        category: ep.category,
+        tag: ep.tag,
+        params: ep.params.length ? ep.params : undefined,
+        hasBody: ep.hasBody || undefined,
+        bodyRef: ep.bodyRef || undefined,
+      })),
+    };
+  },
+
+  async inscada_api_schema({ path: pathStr, method = "GET" }) {
+    if (!pathStr) return { error: "path parametresi gerekli." };
+    if (!API_SPEC) return { error: "API spec yüklenmedi. api-docs.json dosyası bulunamadı." };
+
+    const schema = resolveEndpointSchema(pathStr, method);
+    if (!schema) {
+      // Yakın eşleşme öner
+      const similar = API_INDEX.filter(ep =>
+        ep.path.includes(pathStr) || pathStr.includes(ep.path)
+      ).slice(0, 5);
+      return {
+        error: `Endpoint bulunamadı: ${method.toUpperCase()} ${pathStr}`,
+        similar: similar.map(ep => `${ep.method} ${ep.path}`),
+      };
+    }
+
+    return schema;
+  },
+
+  async inscada_api({ method = "GET", path: pathStr, query_params, body, path_params }) {
+    if (!pathStr) return { error: "path parametresi gerekli." };
+    if (!pathStr.startsWith("/api/")) {
+      return { error: "Güvenlik: path '/api/' ile başlamalıdır." };
+    }
+
+    // Path parametrelerini yerleştir: /api/projects/{id} → /api/projects/52
+    let resolvedPath = pathStr;
+    if (path_params && typeof path_params === "object") {
+      for (const [key, val] of Object.entries(path_params)) {
+        resolvedPath = resolvedPath.replace(`{${key}}`, encodeURIComponent(val));
+      }
+    }
+
+    // Query parametrelerini ekle
+    if (query_params && typeof query_params === "object") {
+      const parts = [];
+      for (const [key, val] of Object.entries(query_params)) {
+        if (Array.isArray(val)) {
+          // Explode format: variableIds=1&variableIds=2
+          for (const v of val) parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`);
+        } else {
+          parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
+        }
+      }
+      if (parts.length) {
+        resolvedPath += (resolvedPath.includes("?") ? "&" : "?") + parts.join("&");
+      }
+    }
+
+    const result = await inscadaApi.request(method.toUpperCase(), resolvedPath, body || undefined);
+    return result;
   },
 };
 
@@ -686,4 +1614,4 @@ async function executeTool(name, args) {
   return await handler(args || {});
 }
 
-module.exports = { executeTool };
+module.exports = { executeTool, inscadaApi };

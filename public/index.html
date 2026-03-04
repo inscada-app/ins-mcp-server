@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1.2.2">
 </head>
 <body>
   <!-- Electron Custom Title Bar -->
@@ -81,7 +81,7 @@
         </button>
         <div class="header-title">
           <h1 id="chatTitle">Yeni Sohbet</h1>
-          <span class="header-subtitle">PostgreSQL • InfluxDB • Charts</span>
+          <span class="header-subtitle" id="headerSubtitle"></span>
         </div>
         <div class="header-actions">
           <button id="clearChatBtn" title="Sohbeti Temizle">
@@ -91,6 +91,22 @@
           </button>
         </div>
       </header>
+
+      <!-- Workspace Context Bar -->
+      <div class="workspace-bar" id="workspaceBar">
+        <div class="workspace-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </div>
+        <select id="spaceSelect">
+          <option value="">Space se&#231;in...</option>
+        </select>
+        <select id="projectSelect" disabled>
+          <option value="">Proje se&#231;in...</option>
+        </select>
+      </div>
 
       <!-- Messages -->
       <div id="messages" class="messages">
@@ -105,17 +121,17 @@
           <p>SCADA projelerinizi yönetin, scriptleri düzenleyin, endüstriyel verileri analiz edin.</p>
           <div class="quick-actions">
             <button class="quick-btn" data-msg="Space'leri listele">📁 Space'leri Göster</button>
-            <button class="quick-btn" data-msg="InfluxDB'deki measurement'ları listele">📊 Measurement'lar</button>
-            <button class="quick-btn" data-msg="Son 24 saatte güncellenen scriptleri göster">📝 Son Scriptler</button>
-            <button class="quick-btn" data-msg="Sistemin genel durumunu özetle">🔍 Sistem Durumu</button>
             <button class="quick-btn" data-msg="Projeleri listele">🏭 Projeler</button>
-            <button class="quick-btn" data-msg="Veritabanından tüm projeleri bul ve aktif alarmları göster">🚨 Aktif Alarmlar</button>
-            <button class="quick-btn" data-msg="Veritabanından tüm connection'ları çek ve bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
-            <button class="quick-btn" data-msg="Veritabanından projeleri ve değişkenleri listele, sonra ilk değişkenin canlı değerini oku">📡 Canlı Değer</button>
-            <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve son 24 saatlik veriyi line chart olarak çiz">📈 Line Chart</button>
-            <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
-            <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul ve anlık değerini gauge olarak göster">🎯 Gauge</button>
-            <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul, son 24 saatlik veriyi analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
+            <button class="quick-btn" data-msg="Değişkenleri listele">📊 Değişkenler</button>
+            <button class="quick-btn" data-msg="Scriptleri listele">📝 Scriptler</button>
+            <button class="quick-btn" data-msg="Sistemin genel durumunu özetle">🔍 Sistem Durumu</button>
+            <button class="quick-btn" data-msg="Projeleri listele ve aktif alarmları göster">🚨 Aktif Alarmlar</button>
+            <button class="quick-btn" data-msg="Tüm connection'ları listele ve bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
+            <button class="quick-btn" data-msg="Projeleri listele, bir değişkenin canlı değerini oku">📡 Canlı Değer</button>
+            <button class="quick-btn" data-msg="Bir değişkenin son 24 saatlik verisini line chart olarak çiz">📈 Line Chart</button>
+            <button class="quick-btn" data-msg="Bir değişkenin ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
+            <button class="quick-btn" data-msg="Bir değişkenin anlık değerini gauge olarak göster">🎯 Gauge</button>
+            <button class="quick-btn" data-msg="Bir değişkenin son 24 saatlik verisini analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
           </div>
         </div>
       </div>
@@ -125,17 +141,17 @@
         <div id="quickPanel" class="quick-panel" style="display:none;">
           <div class="quick-panel-actions">
             <button class="quick-btn" data-msg="Space'leri listele">📁 Space'leri Göster</button>
-            <button class="quick-btn" data-msg="InfluxDB'deki measurement'ları listele">📊 Measurement'lar</button>
-            <button class="quick-btn" data-msg="Son 24 saatte güncellenen scriptleri göster">📝 Son Scriptler</button>
-            <button class="quick-btn" data-msg="Sistemin genel durumunu özetle">🔍 Sistem Durumu</button>
             <button class="quick-btn" data-msg="Projeleri listele">🏭 Projeler</button>
-            <button class="quick-btn" data-msg="Veritabanından tüm projeleri bul ve aktif alarmları göster">🚨 Aktif Alarmlar</button>
-            <button class="quick-btn" data-msg="Veritabanından tüm connection'ları çek ve bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
-            <button class="quick-btn" data-msg="Veritabanından projeleri ve değişkenleri listele, sonra ilk değişkenin canlı değerini oku">📡 Canlı Değer</button>
-            <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve son 24 saatlik veriyi line chart olarak çiz">📈 Line Chart</button>
-            <button class="quick-btn" data-msg="InfluxDB'den değişken isimlerini bul ve ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
-            <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul ve anlık değerini gauge olarak göster">🎯 Gauge</button>
-            <button class="quick-btn" data-msg="InfluxDB'den bir değişken bul, son 24 saatlik veriyi analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
+            <button class="quick-btn" data-msg="Değişkenleri listele">📊 Değişkenler</button>
+            <button class="quick-btn" data-msg="Scriptleri listele">📝 Scriptler</button>
+            <button class="quick-btn" data-msg="Sistemin genel durumunu özetle">🔍 Sistem Durumu</button>
+            <button class="quick-btn" data-msg="Projeleri listele ve aktif alarmları göster">🚨 Aktif Alarmlar</button>
+            <button class="quick-btn" data-msg="Tüm connection'ları listele ve bağlantı durumlarını kontrol et">🔗 Bağlantı Durumları</button>
+            <button class="quick-btn" data-msg="Projeleri listele, bir değişkenin canlı değerini oku">📡 Canlı Değer</button>
+            <button class="quick-btn" data-msg="Bir değişkenin son 24 saatlik verisini line chart olarak çiz">📈 Line Chart</button>
+            <button class="quick-btn" data-msg="Bir değişkenin ortalamalarını bar chart ile karşılaştır">📊 Bar Chart</button>
+            <button class="quick-btn" data-msg="Bir değişkenin anlık değerini gauge olarak göster">🎯 Gauge</button>
+            <button class="quick-btn" data-msg="Bir değişkenin son 24 saatlik verisini analiz edip tahmin grafiği oluştur">🔮 Tahmin Grafiği</button>
           </div>
         </div>
         <div class="input-container">
@@ -152,7 +168,7 @@
           </button>
         </div>
         <div class="input-footer">
-          <span class="powered-by">Claude Sonnet 4 • <span id="toolCount">0</span> tool</span>
+          <span class="powered-by"><span id="modelName">Claude Sonnet 4</span> • <span id="toolCount">0</span> tool</span>
           <span class="session-tokens" id="sessionTokens">0 token</span>
         </div>
       </div>
@@ -167,6 +183,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=1.2.1"></script>
 </body>
 </html>

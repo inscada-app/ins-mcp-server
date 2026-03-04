@@ -1,0 +1,31 @@
+{
+  "name": "@inscada/mcp-server",
+  "version": "1.0.8",
+  "description": "inSCADA MCP Server — SCADA operations via MCP protocol",
+  "bin": {
+    "inscada-mcp": "./index.mjs"
+  },
+  "type": "module",
+  "files": [
+    "index.mjs",
+    "tools.cjs",
+    "tool-handlers.cjs",
+    "telemetry-influx.cjs"
+  ],
+  "scripts": {
+    "prepublishOnly": "cp ../tools.js tools.cjs && cp ../tool-handlers.js tool-handlers.cjs && cp ../telemetry-influx.js telemetry-influx.cjs",
+    "postpublish": "rm -f tools.cjs tool-handlers.cjs telemetry-influx.cjs"
+  },
+  "keywords": [
+    "inscada",
+    "scada",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "dotenv": "^16.4.0",
+    "xlsx": "^0.18.5"
+  }
+}

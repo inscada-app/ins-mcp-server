@@ -1,24 +1,17 @@
 # inSCADA AI Asistan - Project Reference
 
 ## Overview
-Express.js + Claude API asistan app with 33 tools for querying PostgreSQL (inscada), InfluxDB, generating Charts (line, bar, gauge, multi, forecast), Excel export, and inSCADA REST API integration for live SCADA operations.
+Express.js + Claude API asistan app with 29 tools for inSCADA REST API integration, generating Charts (line, bar, gauge, multi, forecast), Excel export, and live SCADA operations.
 
 ## Key Files
 - `server.js` - Express server, routes, Claude API integration
 - `tools.js` - Tool definitions (JSON schemas for Claude)
-- `tool-handlers.js` - Tool execution logic (SQL, InfluxQL, chart rendering)
+- `tool-handlers.js` - Tool execution logic (REST API, chart rendering)
 - `mcp-server.mjs` - MCP server for external tool access
 - `public/` - Frontend (HTML/CSS/JS chat UI)
 
-## InfluxDB Data Model
-- **Main measurement**: `variable_value` in retention policy `variable_value_rp`
-  - Query pattern: `SELECT ... FROM "variable_value_rp"."variable_value" WHERE ...`
-  - **Tags**: name, node_id, project, project_id, space, space_id, variable_id
-  - **Field**: value (float)
-- **Other measurements**: `auth_attempt`, `event_log`, `fired_alarm` (same RP convention: `{m}_rp.{m}`)
-- **Example variable names**: AN01_Active_Power, AN01_Reactive_Power, AN01_Wind_Speed
-
-## PostgreSQL Schema (inscada)
+## inSCADA Data Model (Reference)
+> PostgreSQL schema used by inSCADA backend. All data access is via REST API — no direct DB queries.
 > Convention: most tables have `insert_user, insert_dttm, version_user, version_dttm, space_id`
 
 ### Core Hierarchy
@@ -204,8 +197,8 @@ Base URL: `INSCADA_API_URL` (default: `http://localhost:8081`).
 
 ### Live vs Historical Data
 - **Canlı (anlık) değerler**: `inscada_get_live_value` / `inscada_get_live_values` (REST API)
-- **Tarihsel zaman serisi**: `influx_query` / `influx_stats` (InfluxDB) veya `inscada_logged_values` (REST API)
-- **Grafikler**: `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi`, `chart_forecast` (InfluxDB tabanlı)
+- **Tarihsel zaman serisi**: `inscada_logged_values` / `inscada_logged_stats` (REST API)
+- **Grafikler**: `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi`, `chart_forecast` (REST API tabanlı, variable_names + project_id ile çalışır)
 - **Canlı Gauge**: `chart_gauge` + `auto_refresh=true` ile 2 sn'de bir REST API'den güncellenen gauge
 
 ### Swagger UI
@@ -229,8 +222,8 @@ API dokümanı (JSON): `http://localhost:8081/v3/api-docs`
 
 ### Veri Akışı
 ```
-Claude → chart_gauge(auto_refresh:true, refresh_project_id, refresh_variable_name)
-  → InfluxDB'den ilk değer → __chart objesi frontend'e gönderilir
+Claude → chart_gauge(auto_refresh:true, variable_name, project_id)
+  → REST API'den canlı değer → __chart objesi frontend'e gönderilir
   → Frontend gauge çizer, setInterval(2000) başlatır
   → Her 2 sn: GET /api/live-value → server.js proxy → inSCADA REST API
   → chart.update("none") ile gauge yerinde güncellenir
@@ -249,22 +242,19 @@ Claude → chart_gauge(auto_refresh:true, refresh_project_id, refresh_variable_n
 ### Parametreler
 | Parametre | Tip | Zorunlu | Açıklama |
 |-----------|-----|---------|----------|
-| `measurement` | string | Evet | Measurement adı (Örn: variable_value) |
-| `field` | string | Hayır | Field (varsayılan: value) |
+| `variable_names` | string | Evet | Değişken adları (virgülle ayrılmış, Örn: AN01_Active_Power) |
+| `project_id` | number | Evet | Proje ID |
 | `time_range` | string | Hayır | Tarihsel veri aralığı (Örn: 6h, 24h, 7d) |
-| `where_clause` | string | Hayır | InfluxDB filtre (Örn: "name"='AN01_Active_Power') |
-| `group_by_time` | string | Hayır | Zaman gruplama (Örn: 5m, 1h) |
 | `forecast_values` | array | Evet | Tahmin noktaları: `[{x: ISO_timestamp, y: number}, ...]` |
 | `forecast_label` | string | Hayır | Tahmin serisi etiketi (varsayılan: "Tahmin") |
 | `title` | string | Hayır | Grafik başlığı |
 | `y_label` | string | Hayır | Y ekseni birimi (Örn: kW, °C) |
-| `database` | string | Hayır | InfluxDB veritabanı |
 
 ### Akış
 ```
-Claude → tarihsel veriyi çek (influx_query/chart_line) → analiz et → forecast_values üret
-  → chart_forecast(measurement, field, time_range, where_clause, group_by_time, forecast_values)
-  → Handler: InfluxDB'den tarihsel seri (is_forecast: false) + tahmin serisi (is_forecast: true)
+Claude → tarihsel veriyi analiz et → forecast_values üret
+  → chart_forecast(variable_names, project_id, time_range, forecast_values)
+  → Handler: REST API loggedValues'dan tarihsel seri (is_forecast: false) + tahmin serisi (is_forecast: true)
   → Köprü noktası: tarihsel son nokta → tahmin başına eklenir (boşluksuz birleşim)
   → Frontend: is_forecast=false → düz çizgi/dolgulu, is_forecast=true → kesikli çizgi/elmas/dolgu yok
 ```
@@ -279,7 +269,7 @@ Claude → tarihsel veriyi çek (influx_query/chart_line) → analiz et → fore
 | Arka plan | Renk dolgusu | Şeffaf (`transparent`) |
 
 ### Önemli Prompt Kuralları
-- Gauge istendiğinde `inscada_get_live_value` çağırma → doğrudan `chart_gauge` kullan (InfluxDB'den son değeri alır)
+- Gauge istendiğinde `inscada_get_live_value` çağırma → doğrudan `chart_gauge` kullan (REST API'den canlı değeri alır)
 - Tahmin grafiği istendiğinde `chart_line` değil `chart_forecast` kullan — sadece `chart_forecast` tahmin çizgisi ekleyebilir
 - ASLA chart tool çağırmadan "grafik gösterdim/oluşturdum" deme — tool çağrılmadan ekranda görsel oluşmaz
 - Chart render `setTimeout` 100ms ile DOM hazır olduktan sonra çalışır
@@ -299,7 +289,7 @@ Claude → tarihsel veriyi çek (influx_query/chart_line) → analiz et → fore
 ### Akış
 ```
 User: "excel olarak ver"
-  → Claude: run_query/influx_query/list_spaces vb. ile veriyi çeker
+  → Claude: list_spaces/list_projects vb. ile veriyi çeker
   → Claude: export_excel({file_name, sheets}) çağırır
   → Handler: XLSX workbook oluşturur → os.tmpdir()/inscada-downloads/ altına yazar
   → Return: {__download: true, file_name, download_url, sheet_count, total_rows}
@@ -336,19 +326,15 @@ tool handler return → {__download: true, ...}
 ## Tool Öncelik Kuralları (SYSTEM_PROMPT)
 Claude'un gereksiz tool çağrıları yapmasını engellemek için SYSTEM_PROMPT'a eklenen kurallar:
 
-| İstek | Kullanılacak Tool | run_query/influx_query DEĞİL |
-|-------|-------------------|------------------------------|
-| Space listesi | `list_spaces` | - |
-| Proje listesi | `list_projects` | - |
-| Script listesi | `list_scripts` | - |
-| Script içeriği | `get_script` | - |
-| Script arama | `search_in_scripts` | - |
-| Tag/değişken listesi | `run_query` + `inscada.variable` (name/dsc ILIKE) | Gereksiz JOIN yok |
+| İstek | Kullanılacak Tool |
+|-------|-------------------|
+| Space listesi | `list_spaces` |
+| Proje listesi | `list_projects` |
+| Script listesi | `list_scripts` |
+| Script içeriği | `get_script` |
+| Script arama | `search_in_scripts` |
+| Tag/değişken | Kullanıcıya sor veya workspace context |
 
-- Tag/değişken ararken `inscada.variable` tablosundaki `name` ve `dsc` sütunlarıyla eşleştirme yap, diğer tabloları JOIN etme
-- `run_query` sadece hazır tool'ların karşılamadığı özel SQL sorguları için, DAİMA `inscada.` şemasıyla
-- `information_schema` / `pg_tables` sorguları yasaklandı (schema zaten SYSTEM_PROMPT'ta)
-- `influx_query` sadece hazır tool'lar (`influx_stats`, `chart_*`) yetersiz kaldığında
 - Tek tool yeterliyse birden fazla tool çağrılmaz
 
 ## Performans Loglama
@@ -380,22 +366,8 @@ Claude'un gereksiz tool çağrıları yapmasını engellemek için SYSTEM_PROMPT
 - Express `127.0.0.1`'e bind edilir (`server.js`) — sadece localhost erişimi, ağdan erişim engellenir
 - Electron-only kullanım, authentication yok
 
-### SQL Injection Koruması (run_query)
-- Sadece `SELECT` / `WITH` ile başlayan sorgular izinli
-- Noktalı virgül (`;`) ile çoklu sorgu engeli
-- SQL yorumları (`--`, `/*`) engeli
-- Tehlikeli keyword'ler regex word-boundary (`\b`) ile tespit: INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE, EXECUTE, EXEC
-
-### InfluxQL Injection Koruması
-Üç sanitizasyon fonksiyonu (`tool-handlers.js`):
-- `sanitizeInflux(input)` — where_clause gibi serbest metin alanlarında `;`, `DROP`, `DELETE`, `CREATE`, `ALTER`, `GRANT`, `INTO` engeller
-- `sanitizeInfluxIdentifier(name)` — measurement, field, tag adlarında sadece `[a-zA-Z0-9_-]` izinli
-- `sanitizeInfluxTimeRange(range)` — zaman aralığında sadece `\d+[smhdw]` formatı izinli
-
-Uygulanan handler'lar: `rpFrom()`, `influx_stats`, `influx_query`, `influx_show_tag_values`, `chart_line`, `chart_bar`, `chart_gauge`, `chart_multi`, `chart_forecast`
-
 ### SCADA Yazma Onay Mekanizması
-Tehlikeli tool'lar (`inscada_set_value`, `inscada_run_script`) sunucu tarafında engellenir:
+Tehlikeli tool'lar (`inscada_set_value`, `inscada_run_script`, `update_script`) sunucu tarafında engellenir:
 ```
 Claude tool çağrısı → DANGEROUS_TOOLS kontrolü → hemen çalıştırılmaz
   → pendingActions Map'e kaydedilir (actionId → {tool, input})
@@ -403,7 +375,7 @@ Claude tool çağrısı → DANGEROUS_TOOLS kontrolü → hemen çalıştırılm
   → Kullanıcı onay kutusunda Onayla/İptal seçer
   → POST /api/confirm-action → onaylanırsa executeTool çalışır
 ```
-- `DANGEROUS_TOOLS`: `Set(["inscada_set_value", "inscada_run_script"])`
+- `DANGEROUS_TOOLS`: `Set(["inscada_set_value", "inscada_run_script", "update_script"])`
 - `pendingActions`: `Map<actionId, {tool, input}>` — in-memory, sunucu restart ile sıfırlanır
 - Endpoint: `POST /api/confirm-action` — `{actionId, approved}` body ile çağrılır
 - Frontend: `.confirm-action` kutusu (sarı uyarı rengi), Onayla (yeşil) / İptal (kırmızı) butonları
@@ -416,9 +388,3 @@ Claude tool çağrısı → DANGEROUS_TOOLS kontrolü → hemen çalıştırılm
 - `path.resolve()` ile containment kontrolü — çözülen yol `downloadsDir` içinde olmalı
 - Dosya adı format regex: `/^[a-zA-Z0-9_\-]+_\d+\.xlsx$/`
 - URL encoding (`%2e%2e`) bypass'ı engellenir
-
-## Common Query Patterns
-- Join variable to project: `variable v JOIN project p ON v.project_id = p.project_id`
-- Join variable through frame/device/connection: `variable v JOIN frame f ON v.frame_id=f.frame_id JOIN device d ON f.device_id=d.device_id JOIN connection c ON d.conn_id=c.conn_id`
-- Filter by space: `WHERE space_id = ?` (nearly all tables have space_id)
-- Get protocol details: `JOIN modbus_variable mv ON v.variable_id=mv.variable_id` (use matching protocol)

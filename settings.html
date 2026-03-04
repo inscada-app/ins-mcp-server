@@ -30,23 +30,27 @@
       font-family: var(--font-sans);
       background: var(--bg-secondary);
       color: var(--text-primary);
-      overflow-y: auto;
+      overflow: hidden;
     }
 
     .container {
       max-width: 520px;
       margin: 0 auto;
-      padding: 24px 20px 32px;
+      padding: 16px 20px 16px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
 
     h1 {
       font-size: 18px;
       font-weight: 700;
       color: var(--text-primary);
-      margin-bottom: 20px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
 
     h1 .logo {
@@ -62,12 +66,55 @@
       font-weight: 700;
     }
 
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 8px 16px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-panel {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* ── Form ── */
     .group {
       background: var(--bg-primary);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 16px;
-      margin-bottom: 16px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
       box-shadow: var(--shadow);
     }
 
@@ -77,18 +124,13 @@
       color: var(--accent);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
       border-bottom: 1px solid var(--bg-tertiary);
     }
 
-    .field {
-      margin-bottom: 10px;
-    }
-
-    .field:last-child {
-      margin-bottom: 0;
-    }
+    .field { margin-bottom: 10px; }
+    .field:last-child { margin-bottom: 0; }
 
     label {
       display: block;
@@ -113,18 +155,22 @@
       transition: border-color 0.15s;
     }
 
-    input:focus {
-      border-color: var(--accent);
+    input:focus { border-color: var(--accent); }
+
+    select {
+      width: 100%;
+      padding: 7px 10px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
     }
 
-    .row {
-      display: flex;
-      gap: 10px;
-    }
-
-    .row .field {
-      flex: 1;
-    }
+    .row { display: flex; gap: 10px; }
+    .row .field { flex: 1; }
 
     .checkbox-field {
       display: flex;
@@ -146,11 +192,35 @@
       cursor: pointer;
     }
 
-    .actions {
+    .radio-group {
+      display: flex;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 400;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .radio-group input[type="radio"] {
+      accent-color: var(--accent);
+    }
+
+    /* ── Footer ── */
+    .footer {
+      flex-shrink: 0;
       display: flex;
       gap: 10px;
       justify-content: flex-end;
-      margin-top: 20px;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      margin-top: auto;
     }
 
     .btn {
@@ -164,39 +234,21 @@
       transition: background 0.15s;
     }
 
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: var(--accent-hover);
-    }
-
-    .btn-secondary {
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--border);
-    }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); }
+    .btn-secondary:hover:not(:disabled) { background: var(--border); }
 
     .msg {
       font-size: 12px;
-      margin-top: 8px;
-      text-align: right;
+      flex: 1;
     }
 
     .msg.success { color: var(--success); }
     .msg.error { color: var(--error); }
 
-    /* Test connection button */
+    /* ── Test button ── */
     .test-row {
       display: flex;
       align-items: center;
@@ -220,21 +272,10 @@
       white-space: nowrap;
     }
 
-    .btn-test:hover:not(:disabled) {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
+    .btn-test:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .btn-test:disabled { opacity: 0.6; cursor: not-allowed; }
 
-    .btn-test:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .test-result {
-      font-size: 12px;
-      flex: 1;
-    }
-
+    .test-result { font-size: 12px; flex: 1; }
     .test-result.ok { color: var(--success); }
     .test-result.fail { color: var(--error); }
     .test-result.loading { color: var(--text-muted); }
@@ -251,129 +292,213 @@
       margin-right: 4px;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── License ── */
+    .license-status { margin-bottom: 8px; }
+
+    .license-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 700;
     }
+
+    .license-badge.active { background: #e8f8f0; color: #2d8a5e; border: 1px solid #b6e8cc; }
+    .license-badge.inactive { background: #fef2f1; color: #d44237; border: 1px solid #f5c6c2; }
+
+    .license-key-display { margin-top: 6px; margin-bottom: 8px; }
+
+    .license-key-masked {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 13px;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+    }
+
+    .license-actions {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--bg-tertiary);
+    }
+
+    .btn-danger {
+      padding: 5px 14px;
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #f5c6c2;
+      border-radius: var(--radius-sm);
+      background: var(--bg-primary);
+      color: var(--error);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-danger:hover { background: #fef2f1; border-color: var(--error); }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1><span class="logo">iS</span> inSCADA AI Asistan — Ayarlar</h1>
+    <h1><span class="logo">iS</span> Ayarlar</h1>
 
-    <!-- Claude API -->
-    <div class="group">
-      <div class="group-title">Claude API</div>
-      <div class="field">
-        <label>API Key</label>
-        <input type="password" id="anthropicApiKey" placeholder="sk-ant-...">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="ai">AI Sağlayıcı</button>
+      <button class="tab-btn" data-tab="api">inSCADA API</button>
+      <button class="tab-btn" data-tab="general">Genel</button>
+    </div>
+
+    <!-- Tab 1: AI Sağlayıcı -->
+    <div class="tab-panel active" id="tab-ai">
+      <div class="group">
+        <div class="group-title">Model Sağlayıcı</div>
+        <div class="field">
+          <div class="radio-group">
+            <label>
+              <input type="radio" name="llmProvider" value="claude" id="providerClaude" checked>
+              Claude API
+            </label>
+            <label>
+              <input type="radio" name="llmProvider" value="ollama" id="providerOllama">
+              Ollama
+            </label>
+            <label>
+              <input type="radio" name="llmProvider" value="gemini" id="providerGemini">
+              OpenAI Uyumlu
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Claude -->
+      <div class="group" id="claudeSettings">
+        <div class="group-title">Claude API</div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="anthropicApiKey" placeholder="sk-ant-...">
+        </div>
+        <div class="test-row">
+          <button class="btn-test" id="testClaude">Bağlantıyı Test Et</button>
+          <span class="test-result" id="testClaudeResult"></span>
+        </div>
+      </div>
+
+      <!-- Ollama -->
+      <div class="group" id="ollamaSettings" style="display:none;">
+        <div class="group-title">Ollama</div>
+        <div class="field">
+          <label>URL</label>
+          <input type="text" id="ollamaBaseUrl" placeholder="http://localhost:11434">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input type="text" id="ollamaModel" placeholder="qwen2.5:14b">
+        </div>
+        <div class="test-row">
+          <button class="btn-test" id="testOllama">Bağlantıyı Test Et</button>
+          <span class="test-result" id="testOllamaResult"></span>
+        </div>
+      </div>
+
+      <!-- Gemini / OpenAI Uyumlu -->
+      <div class="group" id="geminiSettings" style="display:none;">
+        <div class="group-title">OpenAI Uyumlu API</div>
+        <div class="field">
+          <label>Sağlayıcı</label>
+          <select id="geminiPreset">
+            <option value="gemini">Google Gemini (1500 req/gün ücretsiz)</option>
+            <option value="groq">Groq (ücretsiz, çok hızlı)</option>
+            <option value="openrouter">OpenRouter ($5 kredi + ücretsiz modeller)</option>
+            <option value="together">Together AI ($25 kredi)</option>
+            <option value="cerebras">Cerebras (ücretsiz)</option>
+            <option value="openai">OpenAI ($5 kredi)</option>
+            <option value="custom">Özel (Manuel)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="geminiApiKey" placeholder="API key...">
+        </div>
+        <div class="field">
+          <label>Base URL</label>
+          <input type="text" id="geminiBaseUrl" placeholder="https://generativelanguage.googleapis.com/v1beta/openai">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <input type="text" id="geminiModel" placeholder="gemini-2.0-flash">
+        </div>
+        <div class="test-row">
+          <button class="btn-test" id="testGemini">Bağlantıyı Test Et</button>
+          <span class="test-result" id="testGeminiResult"></span>
+        </div>
       </div>
     </div>
 
-    <!-- PostgreSQL -->
-    <div class="group">
-      <div class="group-title">PostgreSQL</div>
-      <div class="row">
-        <div class="field" style="flex:2">
-          <label>Host</label>
-          <input type="text" id="dbHost" placeholder="localhost">
-        </div>
-        <div class="field" style="flex:1">
-          <label>Port</label>
-          <input type="number" id="dbPort" placeholder="5432">
-        </div>
-      </div>
-      <div class="field">
-        <label>Database</label>
-        <input type="text" id="dbName" placeholder="promis">
-      </div>
-      <div class="row">
+    <!-- Tab 2: inSCADA API -->
+    <div class="tab-panel" id="tab-api">
+      <div class="group">
+        <div class="group-title">inSCADA REST API</div>
         <div class="field">
-          <label>User</label>
-          <input type="text" id="dbUser" placeholder="postgres">
+          <label>API URL</label>
+          <input type="text" id="inscadaApiUrl" placeholder="http://localhost:8081">
         </div>
-        <div class="field">
-          <label>Password</label>
-          <input type="password" id="dbPassword">
+        <div class="row">
+          <div class="field">
+            <label>Username</label>
+            <input type="text" id="inscadaUsername">
+          </div>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="inscadaPassword">
+          </div>
         </div>
-      </div>
-      <div class="test-row">
-        <button class="btn-test" id="testPg">Bağlantıyı Test Et</button>
-        <span class="test-result" id="testPgResult"></span>
+        <div class="test-row">
+          <button class="btn-test" id="testApi">Bağlantıyı Test Et</button>
+          <span class="test-result" id="testApiResult"></span>
+        </div>
       </div>
     </div>
 
-    <!-- InfluxDB -->
-    <div class="group">
-      <div class="group-title">InfluxDB</div>
-      <div class="row">
-        <div class="field" style="flex:2">
-          <label>Host</label>
-          <input type="text" id="influxHost" placeholder="localhost">
+    <!-- Tab 3: Genel -->
+    <div class="tab-panel" id="tab-general">
+      <div class="group" id="licenseGroup">
+        <div class="group-title">Lisans Durumu</div>
+        <div class="license-status" id="licenseStatus">
+          <span class="license-badge inactive" id="licenseBadge">Kontrol ediliyor...</span>
         </div>
-        <div class="field" style="flex:1">
-          <label>Port</label>
-          <input type="number" id="influxPort" placeholder="8086">
+        <div class="license-key-display" id="licenseKeyDisplay" style="display:none">
+          <span class="license-key-masked" id="licenseMasked"></span>
         </div>
+        <div class="license-actions" id="licenseActions" style="display:none"></div>
       </div>
-      <div class="field">
-        <label>Database</label>
-        <input type="text" id="influxDb" placeholder="inscada">
-      </div>
-      <div class="row">
-        <div class="field">
-          <label>User</label>
-          <input type="text" id="influxUser" placeholder="admin">
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input type="password" id="influxPassword">
-        </div>
-      </div>
-      <div class="checkbox-field">
-        <input type="checkbox" id="influxUseSsl">
-        <label for="influxUseSsl">SSL kullan (HTTPS)</label>
-      </div>
-      <div class="test-row">
-        <button class="btn-test" id="testInflux">Bağlantıyı Test Et</button>
-        <span class="test-result" id="testInfluxResult"></span>
-      </div>
+
     </div>
 
-    <!-- inSCADA REST API -->
-    <div class="group">
-      <div class="group-title">inSCADA REST API</div>
-      <div class="field">
-        <label>API URL</label>
-        <input type="text" id="inscadaApiUrl" placeholder="http://localhost:8081">
-      </div>
-      <div class="row">
-        <div class="field">
-          <label>Username</label>
-          <input type="text" id="inscadaUsername">
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input type="password" id="inscadaPassword">
-        </div>
-      </div>
-      <div class="test-row">
-        <button class="btn-test" id="testApi">Bağlantıyı Test Et</button>
-        <span class="test-result" id="testApiResult"></span>
-      </div>
-    </div>
-
-    <div class="actions">
+    <!-- Footer -->
+    <div class="footer">
+      <div class="msg" id="statusMsg"></div>
       <button class="btn btn-secondary" id="btnCancel">İptal</button>
       <button class="btn btn-primary" id="btnSave">Kaydet</button>
     </div>
-    <div class="msg" id="statusMsg"></div>
   </div>
 
   <script>
+    // ── Tab switching ──
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      });
+    });
+
     const FIELDS = [
       "anthropicApiKey",
-      "dbHost", "dbPort", "dbName", "dbUser", "dbPassword",
-      "influxHost", "influxPort", "influxDb", "influxUser", "influxPassword", "influxUseSsl",
+      "ollamaBaseUrl", "ollamaModel",
+      "geminiApiKey", "geminiBaseUrl", "geminiModel",
       "inscadaApiUrl", "inscadaUsername", "inscadaPassword",
     ];
 
@@ -381,10 +506,65 @@
     const $btnSave = document.getElementById("btnSave");
     let isFirstRun = false;
 
+    // Gemini/OpenAI preset'leri
+    const PROVIDER_PRESETS = {
+      gemini:     { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash" },
+      groq:       { baseUrl: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
+      openrouter: { baseUrl: "https://openrouter.ai/api/v1", model: "google/gemini-2.0-flash-exp:free" },
+      together:   { baseUrl: "https://api.together.xyz/v1", model: "Qwen/Qwen2.5-72B-Instruct-Turbo" },
+      cerebras:   { baseUrl: "https://api.cerebras.ai/v1", model: "gpt-oss-120b" },
+      openai:     { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+      custom:     { baseUrl: "", model: "" },
+    };
+
+    document.getElementById("geminiPreset").addEventListener("change", function () {
+      const preset = PROVIDER_PRESETS[this.value];
+      if (!preset) return;
+      document.getElementById("geminiBaseUrl").value = preset.baseUrl;
+      document.getElementById("geminiModel").value = preset.model;
+    });
+
+    // AI Provider radio toggle
+    function toggleProviderSettings() {
+      const isClaude = document.getElementById("providerClaude").checked;
+      const isOllama = document.getElementById("providerOllama").checked;
+      const isGemini = document.getElementById("providerGemini").checked;
+      document.getElementById("claudeSettings").style.display = isClaude ? "" : "none";
+      document.getElementById("ollamaSettings").style.display = isOllama ? "" : "none";
+      document.getElementById("geminiSettings").style.display = isGemini ? "" : "none";
+    }
+    document.getElementById("providerClaude").addEventListener("change", toggleProviderSettings);
+    document.getElementById("providerOllama").addEventListener("change", toggleProviderSettings);
+    document.getElementById("providerGemini").addEventListener("change", toggleProviderSettings);
+
     // Mevcut ayarları yükle
     window.addEventListener("DOMContentLoaded", async () => {
       const settings = await window.electronAPI.getSettings();
-      isFirstRun = Object.keys(settings).length === 0;
+      isFirstRun = !settings.inscadaApiUrl;
+
+      // AI Provider radio yükle
+      if (settings.llmProvider === "ollama") {
+        document.getElementById("providerOllama").checked = true;
+      } else if (settings.llmProvider === "gemini") {
+        document.getElementById("providerGemini").checked = true;
+      } else {
+        document.getElementById("providerClaude").checked = true;
+      }
+      toggleProviderSettings();
+
+      // Gemini preset'i baseUrl'den tespit et
+      if (settings.geminiBaseUrl) {
+        const sel = document.getElementById("geminiPreset");
+        let matched = false;
+        for (const [key, preset] of Object.entries(PROVIDER_PRESETS)) {
+          if (key !== "custom" && settings.geminiBaseUrl === preset.baseUrl) {
+            sel.value = key;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) sel.value = "custom";
+      }
 
       for (const key of FIELDS) {
         const el = document.getElementById(key);
@@ -398,6 +578,41 @@
 
       if (isFirstRun) {
         document.getElementById("btnCancel").style.display = "none";
+      }
+
+      // Lisans durumunu göster
+      try {
+        const license = await window.electronAPI.getLicenseStatus();
+        const $badge = document.getElementById("licenseBadge");
+        const $keyDisplay = document.getElementById("licenseKeyDisplay");
+        const $masked = document.getElementById("licenseMasked");
+        const $actions = document.getElementById("licenseActions");
+
+        if (license.hasLicense) {
+          let badgeText = "Aktif";
+          if (license.plan) badgeText += " — " + license.plan;
+          $badge.textContent = badgeText;
+          $badge.className = "license-badge active";
+          let keyInfo = license.maskedKey || "";
+          if (license.expiresAt) {
+            keyInfo += "  (Son: " + new Date(license.expiresAt).toLocaleDateString("tr-TR") + ")";
+          }
+          $masked.textContent = keyInfo;
+          $keyDisplay.style.display = "block";
+          $actions.style.display = "block";
+          $actions.innerHTML = '<button class="btn-danger" id="btnRemoveLicense">Lisansi Kaldir</button>';
+          document.getElementById("btnRemoveLicense").addEventListener("click", async () => {
+            if (confirm("Lisansi kaldirmak istediginize emin misiniz? Uygulama yeniden baslatilacak.")) {
+              await window.electronAPI.removeLicense();
+              window.electronAPI.requestRelaunch();
+            }
+          });
+        } else {
+          $badge.textContent = "Lisans Yok";
+          $badge.className = "license-badge inactive";
+        }
+      } catch (e) {
+        console.warn("Lisans durumu alinamadi:", e);
       }
     });
 
@@ -414,6 +629,14 @@
       if ($btnSave.disabled) return;
 
       const settings = {};
+      if (document.getElementById("providerOllama").checked) {
+        settings.llmProvider = "ollama";
+      } else if (document.getElementById("providerGemini").checked) {
+        settings.llmProvider = "gemini";
+      } else {
+        settings.llmProvider = "claude";
+      }
+
       for (const key of FIELDS) {
         const el = document.getElementById(key);
         if (!el) continue;
@@ -426,24 +649,16 @@
         }
       }
 
-      // API key zorunlu
-      if (!settings.anthropicApiKey) {
-        $msg.textContent = "Claude API Key zorunludur.";
-        $msg.className = "msg error";
-        return;
-      }
-
-      // Loading state
       $btnSave.disabled = true;
       const origText = $btnSave.textContent;
       $btnSave.textContent = "Kaydediliyor...";
 
       try {
         if (isFirstRun) {
-          await window.electronAPI.firstRunStart(settings);
+          await window.electronAPI.licenseActivateAndStart(settings);
         } else {
           await window.electronAPI.saveSettings(settings);
-          $msg.textContent = "Kaydedildi. Değişikliklerin uygulanması için yeniden başlatılacak.";
+          $msg.textContent = "Kaydedildi. Yeniden başlatılıyor...";
           $msg.className = "msg success";
           setTimeout(() => window.electronAPI.requestRelaunch(), 1200);
         }
@@ -460,7 +675,7 @@
       window.close();
     });
 
-    // ── Test Connection Handlers ─────────────────────────────
+    // ── Test Connection Handlers ──
     function setTestResult(el, status, text) {
       el.className = "test-result " + status;
       if (status === "loading") {
@@ -470,55 +685,6 @@
       }
     }
 
-    // PostgreSQL
-    document.getElementById("testPg").addEventListener("click", async function () {
-      const btn = this;
-      const result = document.getElementById("testPgResult");
-      btn.disabled = true;
-      setTestResult(result, "loading", "Test ediliyor...");
-      try {
-        const res = await window.electronAPI.testPostgres({
-          host: document.getElementById("dbHost").value || "localhost",
-          port: document.getElementById("dbPort").value || "5432",
-          database: document.getElementById("dbName").value || "promis",
-          user: document.getElementById("dbUser").value || "postgres",
-          password: document.getElementById("dbPassword").value || "1907",
-        });
-        if (res.success) {
-          setTestResult(result, "ok", "Bağlantı başarılı ✓");
-        } else {
-          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
-        }
-      } catch (err) {
-        setTestResult(result, "fail", "Hata: " + err.message);
-      }
-      btn.disabled = false;
-    });
-
-    // InfluxDB
-    document.getElementById("testInflux").addEventListener("click", async function () {
-      const btn = this;
-      const result = document.getElementById("testInfluxResult");
-      btn.disabled = true;
-      setTestResult(result, "loading", "Test ediliyor...");
-      try {
-        const res = await window.electronAPI.testInflux({
-          host: document.getElementById("influxHost").value || "localhost",
-          port: document.getElementById("influxPort").value || "8086",
-          useSsl: document.getElementById("influxUseSsl").checked,
-        });
-        if (res.success) {
-          setTestResult(result, "ok", "Bağlantı başarılı ✓");
-        } else {
-          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
-        }
-      } catch (err) {
-        setTestResult(result, "fail", "Hata: " + err.message);
-      }
-      btn.disabled = false;
-    });
-
-    // inSCADA REST API
     document.getElementById("testApi").addEventListener("click", async function () {
       const btn = this;
       const result = document.getElementById("testApiResult");
@@ -530,6 +696,69 @@
         });
         if (res.success) {
           setTestResult(result, "ok", "Bağlantı başarılı ✓");
+        } else {
+          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
+        }
+      } catch (err) {
+        setTestResult(result, "fail", "Hata: " + err.message);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById("testClaude").addEventListener("click", async function () {
+      const btn = this;
+      const result = document.getElementById("testClaudeResult");
+      btn.disabled = true;
+      setTestResult(result, "loading", "Test ediliyor...");
+      try {
+        const res = await window.electronAPI.testClaude({
+          apiKey: document.getElementById("anthropicApiKey").value,
+        });
+        if (res.success) {
+          setTestResult(result, "ok", "Bağlantı başarılı ✓");
+        } else {
+          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
+        }
+      } catch (err) {
+        setTestResult(result, "fail", "Hata: " + err.message);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById("testOllama").addEventListener("click", async function () {
+      const btn = this;
+      const result = document.getElementById("testOllamaResult");
+      btn.disabled = true;
+      setTestResult(result, "loading", "Test ediliyor...");
+      try {
+        const res = await window.electronAPI.testOllama({
+          url: document.getElementById("ollamaBaseUrl").value || "http://localhost:11434",
+        });
+        if (res.success) {
+          const modelList = (res.models || []).join(", ");
+          setTestResult(result, "ok", "Bağlantı başarılı ✓ Modeller: " + (modelList || "yok"));
+        } else {
+          setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
+        }
+      } catch (err) {
+        setTestResult(result, "fail", "Hata: " + err.message);
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById("testGemini").addEventListener("click", async function () {
+      const btn = this;
+      const result = document.getElementById("testGeminiResult");
+      btn.disabled = true;
+      setTestResult(result, "loading", "Test ediliyor...");
+      try {
+        const res = await window.electronAPI.testGemini({
+          apiKey: document.getElementById("geminiApiKey").value,
+          baseUrl: document.getElementById("geminiBaseUrl").value || "https://generativelanguage.googleapis.com/v1beta/openai",
+          model: document.getElementById("geminiModel").value || "gemini-2.0-flash",
+        });
+        if (res.success) {
+          setTestResult(result, "ok", "Bağlantı başarılı ✓ Modeller: " + (res.models || "yok"));
         } else {
           setTestResult(result, "fail", "Başarısız: " + (res.error || "Bilinmeyen hata"));
         }

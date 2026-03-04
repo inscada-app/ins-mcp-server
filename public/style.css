@@ -2,6 +2,14 @@
    inSCADA AI Asistan - Webix Flat Light Theme
    ============================================================ */
 
+/* Emoji font — PT Sans/Inter emoji glyph içermez, bu override ile
+   emoji Unicode aralığı her zaman sistem emoji font'undan render olur */
+@font-face {
+  font-family: 'EmojiOverride';
+  src: local('Segoe UI Emoji'), local('Apple Color Emoji'), local('Noto Color Emoji'), local('Twemoji Mozilla');
+  unicode-range: U+200D, U+2030-205E, U+2100-2BFF, U+E000-FEFF, U+FE00-FE0F, U+1F000-1FFFF, U+E0020-E007F;
+}
+
 :root {
   --bg-primary: #FFFFFF;
   --bg-secondary: #F4F5F9;
@@ -25,7 +33,7 @@
   --radius-md: 4px;
   --radius-lg: 6px;
   --shadow: 0 1px 4px rgba(0,0,0,0.08);
-  --font-sans: 'PT Sans', 'Inter', -apple-system, sans-serif;
+  --font-sans: 'EmojiOverride', 'PT Sans', 'Inter', -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
@@ -251,6 +259,48 @@ body.electron-app #app { height: calc(100vh - 33px); }
 }
 
 .mobile-only { display: none; }
+
+/* ============ Workspace Context Bar ============ */
+.workspace-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.workspace-label {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.workspace-bar select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.workspace-bar select:focus {
+  border-color: var(--accent);
+}
+
+.workspace-bar select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* ============ Messages ============ */
 .messages {
@@ -483,11 +533,13 @@ body.electron-app #app { height: calc(100vh - 33px); }
 }
 
 .chart-title {
-  padding: 6px 12px;
-  font-size: 11px;
-  color: var(--text-muted);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
   background: var(--bg-tertiary);
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
 }
 
 /* Tool usage indicator */

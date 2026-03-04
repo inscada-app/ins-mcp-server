@@ -5,7 +5,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getSettings: () => ipcRenderer.invoke("get-settings"),
   saveSettings: (settings) => ipcRenderer.invoke("save-settings", settings),
   firstRunStart: (settings) => ipcRenderer.invoke("first-run-start", settings),
+  licenseActivateAndStart: (settings) => ipcRenderer.invoke("license-activate-and-start", settings),
   requestRelaunch: () => ipcRenderer.invoke("request-relaunch"),
+
+  // License
+  validateLicense: (key) => ipcRenderer.invoke("validate-license", key),
+  getLicenseStatus: () => ipcRenderer.invoke("get-license-status"),
+  removeLicense: () => ipcRenderer.invoke("remove-license"),
+  licenseOpenSettings: () => ipcRenderer.send("license-open-settings"),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
@@ -22,7 +29,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openAbout: () => ipcRenderer.send("open-about"),
 
   // Test connections
-  testPostgres: (config) => ipcRenderer.invoke("test-postgres", config),
-  testInflux: (config) => ipcRenderer.invoke("test-influx", config),
   testInscadaApi: (config) => ipcRenderer.invoke("test-inscada-api", config),
+  testClaude: (config) => ipcRenderer.invoke("test-claude", config),
+  testOllama: (config) => ipcRenderer.invoke("test-ollama", config),
+  testGemini: (config) => ipcRenderer.invoke("test-gemini", config),
 });
