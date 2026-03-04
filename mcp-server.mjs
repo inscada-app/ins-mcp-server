@@ -18,7 +18,8 @@ const require = createRequire(import.meta.url);
 require("dotenv").config();
 const TOOLS = require("./tools.js");
 const { executeTool } = require("./tool-handlers.js");
-const { init, write, flush, shutdown, uptimeSeconds } = require("./telemetry-influx.js");
+const { init, write, flush, shutdown, uptimeSeconds, setInscadaVersion } = require("./telemetry-influx.js");
+const { inscadaApi } = require("./tool-handlers.js");
 
 // MCP Server oluştur
 const server = new Server(
@@ -128,6 +129,18 @@ async function main() {
   await server.connect(transport);
   console.error("inSCADA MCP Server başlatıldı (stdio)");
   console.error(`${TOOLS.length} tool kayıtlı`);
+
+  // inSCADA versiyonunu lazy olarak bir kez al
+  setTimeout(async () => {
+    try {
+      const ver = await inscadaApi.request("GET", "/api/version");
+      const version = typeof ver === "string" ? ver : (ver.version || ver.raw || JSON.stringify(ver));
+      setInscadaVersion(version.replace(/["\s]/g, ""));
+      console.error(`[telemetry] inSCADA version: ${version}`);
+    } catch (e) {
+      console.error(`[telemetry] inSCADA version alınamadı: ${e.message}`);
+    }
+  }, 5000);
 }
 
 main().catch((error) => {

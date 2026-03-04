@@ -1299,6 +1299,18 @@ app.get("*", (req, res) => {
 
 telemetry.init();
 
+// inSCADA versiyonunu lazy olarak bir kez al ve telemetry'ye set et
+setTimeout(async () => {
+  try {
+    const ver = await inscadaApi.request("GET", "/api/version");
+    const version = typeof ver === "string" ? ver : (ver.version || ver.raw || JSON.stringify(ver));
+    telemetry.setInscadaVersion(version.replace(/["\s]/g, ""));
+    console.log(`[telemetry] inSCADA version: ${version}`);
+  } catch (e) {
+    console.error(`[telemetry] inSCADA version alınamadı: ${e.message}`);
+  }
+}, 5000);
+
 app.listen(PORT, "127.0.0.1", () => {
   const providerInfo = LLM_PROVIDER === "ollama"
     ? `Ollama (${OLLAMA_MODEL})`

@@ -8,6 +8,10 @@
 
 const http = require("http");
 const https = require("https");
+const os = require("os");
+const crypto = require("crypto");
+const path = require("path");
+const fs = require("fs");
 
 let enabled = false;
 let influxUrl = null;
@@ -17,6 +21,9 @@ let influxPass = "";
 let queue = [];
 let flushTimer = null;
 let startTime = null;
+
+// ── Global identity tags (her write'a otomatik eklenir) ─────────
+let globalTags = {};
 
 const MAX_QUEUE = 1000;
 const FLUSH_INTERVAL = 15_000;
@@ -88,6 +95,24 @@ const DEFAULT_INFLUX_URL = "http://46.225.62.29:8086";
 const DEFAULT_INFLUX_USER = "tel_writer";
 const DEFAULT_INFLUX_PASS = "wR1t30nly";
 
+function getInstanceId() {
+  const idFile = path.join(os.homedir(), ".inscada-instance-id");
+  try {
+    const existing = fs.readFileSync(idFile, "utf8").trim();
+    if (existing) return existing;
+  } catch {}
+  const id = crypto.randomUUID();
+  try { fs.writeFileSync(idFile, id, "utf8"); } catch {}
+  return id;
+}
+
+function getAppVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"));
+    return pkg.version || "unknown";
+  } catch { return "unknown"; }
+}
+
 function init() {
   const url = process.env.INFLUX_URL || DEFAULT_INFLUX_URL;
   influxUrl = url.replace(/\/+$/, "");
@@ -96,8 +121,17 @@ function init() {
   influxPass = process.env.INFLUX_PASS || DEFAULT_INFLUX_PASS;
   enabled = true;
   startTime = Date.now();
+
+  globalTags.hostname = os.hostname();
+  globalTags.instance_id = getInstanceId();
+  globalTags.app_version = getAppVersion();
+
   flushTimer = setInterval(flush, FLUSH_INTERVAL);
-  console.error(`[telemetry] enabled → ${influxUrl} db=${influxDb}`);
+  console.error(`[telemetry] enabled → ${influxUrl} db=${influxDb} instance=${globalTags.instance_id}`);
+}
+
+function setInscadaVersion(version) {
+  if (version) globalTags.inscada_version = String(version);
 }
 
 const SENSITIVE_KEYS = /password|passwd|secret|token|apikey|api_key/i;
@@ -109,7 +143,8 @@ function write(measurement, tags = {}, fields = {}) {
   if (!enabled) return;
   if (fields.params_preview) fields.params_preview = sanitizePreview(fields.params_preview);
   if (fields.message) fields.message = sanitizePreview(fields.message);
-  const line = buildLine(measurement, tags, fields, Date.now());
+  const mergedTags = { ...globalTags, ...tags };
+  const line = buildLine(measurement, mergedTags, fields, Date.now());
   if (!line) return;
   queue.push(line);
   if (queue.length > MAX_QUEUE) queue = queue.slice(-MAX_QUEUE);
@@ -139,4 +174,4 @@ function uptimeSeconds() {
   return Math.round((Date.now() - startTime) / 1000);
 }
 
-module.exports = { init, write, flush, shutdown, uptimeSeconds };
+module.exports = { init, write, flush, shutdown, uptimeSeconds, setInscadaVersion };

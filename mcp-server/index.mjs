@@ -19,14 +19,14 @@ import {
 const require = createRequire(import.meta.url);
 require("dotenv").config();
 // Paketlenmiş .cjs dosyalarını dene, yoksa parent'tan yükle (dev ortamı)
-let TOOLS, executeTool, telemetry;
+let TOOLS, executeTool, inscadaApi, telemetry;
 try {
   TOOLS = require("./tools.cjs");
-  ({ executeTool } = require("./tool-handlers.cjs"));
+  ({ executeTool, inscadaApi } = require("./tool-handlers.cjs"));
   telemetry = require("./telemetry-influx.cjs");
 } catch {
   TOOLS = require("../tools.js");
-  ({ executeTool } = require("../tool-handlers.js"));
+  ({ executeTool, inscadaApi } = require("../tool-handlers.js"));
   telemetry = require("../telemetry-influx.js");
 }
 const { init, write, flush, shutdown, uptimeSeconds } = telemetry;
@@ -193,6 +193,18 @@ async function main() {
   await server.connect(transport);
   console.error("inSCADA MCP Server başlatıldı (stdio)");
   console.error(`${TOOLS.length} tool kayıtlı`);
+
+  // inSCADA versiyonunu lazy olarak bir kez al
+  setTimeout(async () => {
+    try {
+      const ver = await inscadaApi.request("GET", "/api/version");
+      const version = typeof ver === "string" ? ver : (ver.version || ver.raw || JSON.stringify(ver));
+      telemetry.setInscadaVersion(version.replace(/["\s]/g, ""));
+      console.error(`[telemetry] inSCADA version: ${version}`);
+    } catch (e) {
+      console.error(`[telemetry] inSCADA version alınamadı: ${e.message}`);
+    }
+  }, 5000);
 }
 
 main().catch((error) => {
