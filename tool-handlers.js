@@ -243,6 +243,13 @@ class InscadaAPI {
               if (match[1] === "ins_refresh_token") this.refreshToken = match[2];
             }
           }
+          // Fallback: cookie yoksa body'den token oku (bazı inSCADA sürümleri token'ı body'de döner)
+          if (!this.accessToken && data) {
+            try {
+              const json = JSON.parse(data);
+              if (json.token) this.accessToken = json.token;
+            } catch {}
+          }
           if (!this.accessToken) {
             reject(new Error(`inSCADA login başarısız (HTTP ${res.statusCode}): ${data.substring(0, 200)}`));
             return;
@@ -934,7 +941,7 @@ const handlers = {
   },
 
   async update_script({ script_id, code }) {
-    await inscadaApi.request("PATCH", `/api/scripts/${script_id}/code`, code);
+    await inscadaApi.request("PATCH", `/api/scripts/${script_id}/code`, { code });
     const updated = await inscadaApi.request("GET", `/api/scripts/${script_id}`);
     return { success: true, script_id: updated.id, name: updated.name, message: `"${updated.name}" güncellendi.` };
   },

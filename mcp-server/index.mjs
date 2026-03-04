@@ -76,6 +76,18 @@ const SERVER_INSTRUCTIONS = `
 - To access a different space, use the \`set_space\` tool first
 - Default space is "default_space" — changes persist for the session
 
+## 9. Live Value Endpoints (ÇOK ÖNEMLİ)
+- Single live value: USE \`inscada_get_live_value\` tool (NOT inscada_api)
+  - Correct endpoint: GET /api/variables/value?projectId=X&name=Y
+- Multiple live values: USE \`inscada_get_live_values\` tool (NOT inscada_api)
+  - Correct endpoint: GET /api/variables/values?projectId=X&names=Y1,Y2
+- WRONG endpoints (DO NOT USE): /api/variables/live-value, /api/variables/current, /api/runtime/*, /api/communication/*, /api/variables/{id}/live-value, POST /api/variables/live-values
+- RULE: ALWAYS prefer dedicated tools over inscada_api for live values
+
+## 10. Script Creation Required Fields
+- POST /api/scripts requires: name, projectId, code (non-empty), schType (Periodic|Cron|Once|Manual), logFlag (boolean)
+- Optional: dsc, period (ms, for Periodic), delay, offset, isActive
+
 ## 7. Interrupted Task Resume
 When a long-running task is interrupted (timeout, retry, or reconnection):
 1. NEVER restart from scratch — first check what has already been done
