@@ -267,11 +267,12 @@ class InscadaAPI {
     });
   }
 
-  async request(method, pathWithQuery, body) {
+  async request(method, pathWithQuery, body, { contentType } = {}) {
     if (!this.accessToken) await this.login();
     const parsed = new URL(INSCADA_API_URL);
     const protocol = parsed.protocol === "https:" ? https : http;
-    const bodyStr = body ? JSON.stringify(body) : null;
+    const isRawBody = contentType && contentType !== "application/json";
+    const bodyStr = body != null ? (isRawBody ? String(body) : JSON.stringify(body)) : null;
 
     return new Promise((resolve, reject) => {
       const headers = {
@@ -280,7 +281,7 @@ class InscadaAPI {
         "X-Space": this.currentSpace,
       };
       if (bodyStr) {
-        headers["Content-Type"] = "application/json";
+        headers["Content-Type"] = contentType || "application/json";
         headers["Content-Length"] = Buffer.byteLength(bodyStr);
       }
 
@@ -941,7 +942,7 @@ const handlers = {
   },
 
   async update_script({ script_id, code }) {
-    await inscadaApi.request("PATCH", `/api/scripts/${script_id}/code`, { code });
+    await inscadaApi.request("PATCH", `/api/scripts/${script_id}/code`, code, { contentType: "text/plain" });
     const updated = await inscadaApi.request("GET", `/api/scripts/${script_id}`);
     return { success: true, script_id: updated.id, name: updated.name, message: `"${updated.name}" güncellendi.` };
   },
@@ -993,7 +994,14 @@ const handlers = {
   },
 
   // --- Animations ---
-  async list_animations({ project_id, search }) {
+  async list_animations({ project_id, project_name, search }) {
+    if (!project_id && project_name) {
+      const projects = await inscadaApi.request("GET", "/api/projects");
+      const match = projects.find(p => p.name && p.name.toLowerCase() === project_name.toLowerCase());
+      if (!match) throw new Error(`Proje bulunamadı: ${project_name}`);
+      project_id = match.id;
+    }
+    if (!project_id) throw new Error("project_id veya project_name gerekli.");
     const anims = await inscadaApi.request("GET", `/api/animations?projectId=${project_id}`);
     let result = Array.isArray(anims) ? anims.map(a => ({
       animation_id: a.id, name: a.name, dsc: a.dsc || null,
@@ -1229,7 +1237,9 @@ const handlers = {
     if (!project_id) throw new Error("project_id gerekli.");
     if (!variable_names) throw new Error("variable_names gerekli.");
 
-    let startDate = start_date, endDate = end_date;
+    const fmtDate = (d) => d.replace("T", " ").replace(/\.\d+/, "").replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
+    let startDate = start_date ? fmtDate(start_date) : null;
+    let endDate = end_date ? fmtDate(end_date) : null;
     if (!startDate || !endDate) {
       const range = timeRangeToDateRange(time_range);
       startDate = startDate || range.startDate;
@@ -1683,7 +1693,7 @@ const INSCADA_GUIDE = `# inSCADA MCP Server — Rules & Best Practices
 ## 5. Animation Creation
 - POST /api/animations body:{name,projectId,mainFlag:false,duration:2000,playOrder:1,svgContent:"<svg>...</svg>"}
 - Element: POST /api/animations/{animationId}/elements body:{animationId,domId,name,dsc:null,type,expressionType,expression,status:true,props}
-- Script binding: POST /api/animations/{animationId}/scripts body:{type:"animation",scriptId:ID}
+- Script binding: POST /api/animations/{animationId}/scripts body:{type:"animation",scriptId:ID} — ONLY these 2 fields, do NOT include animationId in body
 - CRITICAL: props must never be null (at least "{}"). SVG ids = domId. Cross-project: ins.getVariableValue('ProjectName','TagName')
 - SVG REQUIRED: <svg> must include: style="width:100%; height:100%;" viewBox="0 0 1920 1080" width="1920" height="1080"
 - Element types:
@@ -1729,11 +1739,13 @@ const INSCADA_GUIDE = `# inSCADA MCP Server — Rules & Best Practices
 - Step 2: inscada_get_live_values(project_id:X, variable_names:"name1,name2,...") → live values
 - No single endpoint reads values by frameId
 
-## 8. Historical Data & Statistics
+## 8. Historical Data & Statistics (CRITICAL)
+- ALWAYS use dedicated tools: inscada_logged_values or inscada_logged_stats. NEVER use inscada_api for historical data.
 - Time series → inscada_logged_values (variable_ids + start_date/end_date)
-- Statistics (min, max, avg, count) → inscada_logged_stats (project_id + variable_names)
-- Paged: GET /api/variables/loggedValues/pages?variableIds=X&startDate=S&endDate=E&pageSize=5000&pageNumber=0
-- Stats: GET /api/variables/loggedValues/stats/hourly (or /daily)?variableIds=X&startDate=S&endDate=E
+- Statistics (min, max, avg, count) → inscada_logged_stats (project_id + variable_names + interval:"hourly"|"daily")
+- Date format: "yyyy-MM-dd HH:mm:ss" (e.g. "2026-03-05 00:00:00"). ISO 8601 with T/Z is auto-converted.
+- WRONG endpoints (DO NOT USE via inscada_api): /stats/interval, /stats/daily, /loggedValues/pages — these require specific param formats that inscada_api cannot handle correctly
+- Paged (internal): GET /api/variables/loggedValues/pages?variableIds=X&startDate=S&endDate=E&pageSize=5000&pageNumber=0
 - Trends: GET /api/trends → groups, GET /api/trends/{id}/tags → tags with variableId, color, scale
 
 ## 9. Chart Rules

@@ -198,9 +198,9 @@ SCRIPT YAZMA KURALLARI:
       type: "object",
       properties: {
         project_id: { type: "number", description: "Project ID" },
+        project_name: { type: "string", description: "Proje adı (project_id yoksa kullanılır)" },
         search: { type: "string", description: "Animasyon adında arama (opsiyonel)" },
       },
-      required: ["project_id"],
     },
   },
   {
