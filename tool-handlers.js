@@ -1751,7 +1751,16 @@ const INSCADA_GUIDE = `# inSCADA MCP Server — Rules & Best Practices
 - Script tag escape: </script> → <\\/script>
 - Defaults: target="Home", position="Bottom", menu_order=1
 - Before update: read with get_custom_menu first
-- CSP: CDN only cdnjs.cloudflare.com, ajax.googleapis.com, cdn.jsdelivr.net. External API forbidden.
+- CSP (Content-Security-Policy) — inSCADA enforces these rules:
+  default-src 'self'; connect-src 'self' (NO external API calls!);
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' cdnjs.cloudflare.com ajax.googleapis.com cdn.jsdelivr.net;
+  style-src 'self' 'unsafe-inline' data: cdnjs.cloudflare.com fonts.googleapis.com cdn.jsdelivr.net;
+  font-src 'self' data: cdnjs.cloudflare.com fonts.gstatic.com;
+  img-src 'self' data: blob: *.inscada.com *.inscada.online;
+  frame-src 'self' blob: *.inscada.com *.inscada.online inscada.gitbook.io;
+  worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';
+  ALLOWED CDNs: cdnjs.cloudflare.com, ajax.googleapis.com, cdn.jsdelivr.net, fonts.googleapis.com, fonts.gstatic.com
+  BLOCKED: Any external API fetch (connect-src: self only), any CDN not listed above
 - REST API: fetch("/api/...", {credentials:"include", headers:{"X-Space":"space_name","Accept":"application/json"}}). projectId required.
 - icon: Font Awesome 5.x Free (fas/far/fab). Default: "fas fa-industry"
 

@@ -732,7 +732,16 @@ Custom menü:
 - TEMPLATE KULLAN (gauge/line_chart/gauge_and_chart/multi_chart) — content GÖNDERME. Serbest HTML sadece şablonlar yetersizse.
 - Varsayılanlar: target="Home", position="Bottom", menu_order=1. Her zaman gönder.
 - Güncelleme: önce get_custom_menu ile oku
-- CSP: CDN sadece cdnjs.cloudflare.com, ajax.googleapis.com, cdn.jsdelivr.net. Chart.js için jsdelivr. Gauge'ı canvas/SVG ile çiz. Harici API yasak (connect-src: self).
+- CSP (Content-Security-Policy) — inSCADA kuralları:
+  default-src 'self'; connect-src 'self' (harici API çağrısı YASAK!);
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' cdnjs.cloudflare.com ajax.googleapis.com cdn.jsdelivr.net;
+  style-src 'self' 'unsafe-inline' data: cdnjs.cloudflare.com fonts.googleapis.com cdn.jsdelivr.net;
+  font-src 'self' data: cdnjs.cloudflare.com fonts.gstatic.com;
+  img-src 'self' data: blob: *.inscada.com *.inscada.online;
+  frame-src 'self' blob: *.inscada.com *.inscada.online inscada.gitbook.io;
+  worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';
+  İZİNLİ CDN'ler: cdnjs.cloudflare.com, ajax.googleapis.com, cdn.jsdelivr.net, fonts.googleapis.com, fonts.gstatic.com
+  YASAK: Listelenmeyen CDN, harici API fetch (connect-src sadece self)
 - REST API çağrısı: fetch("/api/...", {credentials:"include", headers:{"X-Space":"space_adi","Accept":"application/json"}}). projectId zorunlu.
 - icon: Font Awesome 5.x Free (fas/far/fab). Varsayılan: "fas fa-industry"
 
