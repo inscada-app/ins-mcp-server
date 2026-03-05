@@ -1,6 +1,6 @@
 {
   "name": "@inscada/mcp-server",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "inSCADA MCP Server — SCADA operations via MCP protocol",
   "bin": {
     "inscada-mcp": "./index.mjs"
