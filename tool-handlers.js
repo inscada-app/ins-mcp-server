@@ -1653,10 +1653,17 @@ const INSCADA_GUIDE = `# inSCADA MCP Server — Rules & Best Practices
 - Most methods have (projectName, ...) overloads. Without projectName, uses script's project.
 - Convert Java collections: var list = toJS(ins.getVariables())
 - Module import: var helper = require(ins, "HelperScript"); helper.myFunc();
-- Date: var now = ins.now(); var d = ins.getDate(epochMs); or new java.util.Date()
+- Date: var now = ins.now(); var d = ins.getDate(epochMs); or new java.util.Date(). ins.now() returns Java Date object, use ins.now().getTime() for epoch ms
 - setVariableValue: {value: N} — only value key required
 - Live date: ins.getVariableValue().dateInMs is epoch ms
 - Historical date: dttm field is ISO 8601 string. Nashorn new Date(isoString) returns NaN! Use: var timeStr = ("" + items[i].dttm).substring(11, 19);
+- ins.getLoggedVariableValuesByPage & ins.getLoggedVariableValueStatsByInterval rules:
+  1. names param → MUST be JS array: ["TagName"]. Java list (javaArrayList) DOES NOT WORK. Single string DOES NOT WORK.
+  2. startDate/endDate → MUST be Java Date via ins.getDate(epochMs). String format DOES NOT WORK. Epoch ms number DOES NOT WORK.
+     Example: var dt = ins.now(); var year = 1900 + dt.getYear(); var month = dt.getMonth(); var day = dt.getDate(); var startDate = ins.getDate((new Date(year, month, day)).getTime());
+     Note: dt.getMonth() is 0-indexed, do NOT add +1 when passing to new Date()
+  3. Data comes in reverse order (newest first) → use reverse loop: for (var i = items.length - 1; i >= 0; i--) { ... }
+  4. dttm field is ISO 8601 string → extract time with substring(11,19): var saat = ("" + items[i].dttm).substring(11, 19); // "HH:mm:ss"
 
 ## 3. Script Management — run vs schedule
 - POST /api/scripts/{id}/run → One-time execution (test/debug only)
