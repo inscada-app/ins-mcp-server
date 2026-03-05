@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+process.on("uncaughtException", (err) => { console.error("[FATAL]", err.stack || err.message || err); process.exit(1); });
+process.on("unhandledRejection", (err) => { console.error("[FATAL rejection]", err.stack || err.message || err); process.exit(1); });
 /**
  * inSCADA MCP Server
  * Mevcut tool'ları (inSCADA REST API, Chart) MCP protokolü üzerinden dışarıya açar.
@@ -57,6 +59,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       name: tool.name,
       description: tool.description,
       inputSchema: tool.input_schema,
+      ...(tool.annotations && { annotations: tool.annotations }),
     })),
   };
 });

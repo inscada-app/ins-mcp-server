@@ -9,6 +9,7 @@ const TOOLS = [
   {
     name: "set_space",
     description: "Aktif space'i değiştirir. Tüm API isteklerinde gönderilen X-Space header'ını günceller. Farklı bir space'teki verilere erişmek için önce bu tool ile space değiştirin.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {
@@ -21,6 +22,7 @@ const TOOLS = [
   {
     name: "list_spaces",
     description: "inSCADA space'leri listeler. Hiyerarşinin en üst seviyesi.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -31,6 +33,7 @@ const TOOLS = [
   {
     name: "list_projects",
     description: "Bir space altındaki projeleri listeler.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -43,6 +46,7 @@ const TOOLS = [
   {
     name: "list_variables",
     description: "Bir projedeki tüm SCADA değişkenlerini (tag/point) listeler. Değişken adı, birimi, açıklaması, bağlantı bilgisi döner.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -58,6 +62,7 @@ const TOOLS = [
   {
     name: "list_scripts",
     description: "Bir proje altındaki scriptleri listeler. Kod içeriği gösterilmez.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -71,6 +76,7 @@ const TOOLS = [
   {
     name: "get_script",
     description: "Bir scriptin tam kodunu ve detaylarını getirir.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -157,6 +163,7 @@ SCRIPT YAZMA KURALLARI:
   KRİTİK: body'de animationId dahil edilmeli. dsc:null olabilir ama props asla null olamaz (en az "{}" gönder). SVG'deki rect/g/text id'leri domId olarak kullanılır.
   Animasyon varsayılanları: color:"#E8E8E8", alignment:"none".
 - SVG animasyon oluşturma: Tüm animasyonlar 1920x1080 boyutunda olmalı. SVG tag zorunlu özellikleri: style="width:100%; height:100%;", viewBox="0 0 1920 1080", width="1920", height="1080". Eksik olursa sayfa taşar.`,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -169,6 +176,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "list_connections",
     description: "Projedeki connection (bağlantı) kayıtlarını listeler. include_status=true ile bağlantı durumlarını da getirir.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -181,6 +189,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "search_in_scripts",
     description: "Tüm scriptlerde kod içi metin araması yapar.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -194,6 +203,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "list_animations",
     description: "Bir projedeki animasyonları listeler. SVG içeriği dahil edilmez (hafif).",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -206,6 +216,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "get_animation",
     description: "Bir animasyonun detaylarını, elementlerini ve scriptlerini getirir.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -221,6 +232,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_get_live_value",
     description: "Bir değişkenin CANLI (anlık, şu anki) değerini okur. Kullanıcı canlı/anlık/mevcut değer istediğinde BU TOOL kullanılmalıdır. project_id opsiyoneldir, verilmezse otomatik bulunur.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -233,6 +245,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_get_live_values",
     description: "Birden fazla değişkenin CANLI (anlık) değerlerini toplu okur. Çoklu canlı değer sorgusu için BU TOOL kullanılmalıdır. project_id opsiyoneldir, verilmezse otomatik bulunur.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -245,6 +258,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_set_value",
     description: "Değişkene değer yazar. DİKKAT: Gerçek ekipmana komut gönderir.",
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -258,6 +272,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_get_fired_alarms",
     description: "Aktif alarmları listeler.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -268,6 +283,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_connection_status",
     description: "Connection bağlantı durumlarını kontrol eder.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -279,6 +295,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_project_status",
     description: "Proje çalışma durumunu kontrol eder.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -290,6 +307,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_run_script",
     description: "Scripti inSCADA üzerinde çalıştırır.",
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -301,6 +319,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_script_status",
     description: "Script çalışma durumunu kontrol eder.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -312,6 +331,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_logged_values",
     description: "Değişkenlerin tarihsel log verilerini çeker (REST API).",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -325,6 +345,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_logged_stats",
     description: "Değişkenlerin istatistiklerini getirir (min, max, avg, sum, count, first, last). Günlük veya saatlik aralıkla.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -343,6 +364,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "chart_line",
     description: "Zaman serisi line chart üretir. Tarihsel veriyi REST API'den çeker.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {
@@ -360,6 +382,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "chart_bar",
     description: "Bar chart üretir. Değişken bazlı karşılaştırma (istatistik).",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {
@@ -378,6 +401,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "chart_gauge",
     description: "Anlık değer gauge göstergesi. auto_refresh=true ile 2sn'de bir canlı güncelleme.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {
@@ -395,6 +419,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "chart_multi",
     description: "Birden fazla seriyi aynı grafikte çizer.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {
@@ -423,6 +448,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "chart_forecast",
     description: "Tarihsel + tahmin grafiği. Tarihsel düz çizgi, tahmin kesikli çizgi. Önce veriyi analiz edip forecast_values üret.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {
@@ -455,6 +481,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "list_custom_menus",
     description: "Custom menüleri listeler (3 seviyeli hiyerarşi).",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -465,6 +492,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "get_custom_menu",
     description: "Custom menü detaylarını ve HTML içeriğini getirir.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -476,6 +504,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "get_custom_menu_by_name",
     description: "İsme göre custom menü arar ve detaylarını getirir.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -487,6 +516,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "create_custom_menu",
     description: "Custom menü oluşturur. TEMPLATE KULLAN (gauge/line_chart/gauge_and_chart/multi_chart). Template varsa content gönderme.",
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -528,6 +558,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "update_custom_menu",
     description: "Custom menüyü günceller. Önce get_custom_menu ile oku. Template ile içerik yenilenebilir.",
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -570,6 +601,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "delete_custom_menu",
     description: "Bir custom menüyü siler.",
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -585,6 +617,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "export_excel",
     description: "Veriyi Excel (.xlsx) olarak dışa aktarır. Birden fazla sheet destekler.",
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {
@@ -610,6 +643,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_api_endpoints",
     description: "inSCADA REST API endpoint keşfi. Arama/kategori/method ile doğru endpoint'i bul. 625 endpoint arasında filtrele.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -624,6 +658,7 @@ SCRIPT YAZMA KURALLARI:
   {
     name: "inscada_api_schema",
     description: "Bir endpoint'in parametre ve body şemasını gösterir. Endpoint'i çağırmadan önce hangi parametrelerin gerekli olduğunu öğrenmek için kullan.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -667,6 +702,7 @@ Animasyon oluşturma:
   Frame değişken değerleri: frameId ile direkt value okuyan endpoint yok. 2 adım: (1) inscada_api(POST, /api/variables/filter/pages, query_params:{pageSize:500}, body:{projectId:X, frameId:Y}) → variable listesi, (2) inscada_get_live_values(variable_names:"name1,name2,...") → canlı değerler.
   SVG ZORUNLU: <svg> tag'i şu 3 özelliği İÇERMELİ: style="width:100%; height:100%;" viewBox="0 0 1920 1080" width="1920" height="1080". Tam: <svg xmlns="http://www.w3.org/2000/svg" style="width:100%; height:100%;" width="1920" height="1080" viewBox="0 0 1920 1080">. Eksik olursa SVG taşar. Tüm element koordinatları 1920x1080 içinde kalmalı.
   KRİTİK: props asla null olamaz (en az "{}" gönder). SVG id'leri=domId.`,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     input_schema: {
       type: "object",
       properties: {
@@ -682,6 +718,7 @@ Animasyon oluşturma:
   {
     name: "inscada_guide",
     description: "IMPORTANT: Call this tool FIRST before using any other inSCADA tool in a new conversation. Returns comprehensive usage guide including: Nashorn script rules (ECMAScript 5), ins.* API reference (30+ methods), animation element types (27 types), chart rules, custom menu rules, live value endpoints, tool priorities, and best practices. Without this guide you will make errors.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     input_schema: {
       type: "object",
       properties: {},

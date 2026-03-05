@@ -1,0 +1,67 @@
+{
+  "manifest_version": "0.3",
+  "name": "inscada-mcp",
+  "display_name": "inSCADA",
+  "version": "1.4.5",
+  "description": "Connect Claude to your inSCADA SCADA system. Read live values, manage alarms, write scripts, create animations, analyze historical data, and more.",
+  "long_description": "inSCADA MCP Server connects AI assistants to your inSCADA SCADA system via the Model Context Protocol. 37 tools for:\n\n- **Live Monitoring**: Read real-time values, check alarms, connection status\n- **Application Development**: Write/debug Nashorn scripts, create SVG animations, build custom menus\n- **Data Analytics**: Query historical logs, compute statistics, generate charts and forecasts\n- **Generic API Access**: Discover and call any of 1100+ inSCADA REST API endpoints\n\nDesigned for inSCADA JDK11 edition.",
+  "author": {
+    "name": "inSCADA",
+    "email": "habib.kara@inscada.com",
+    "url": "https://inscada.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/inscada/mcp-server.git"
+  },
+  "homepage": "https://inscada.com",
+  "documentation": "https://www.npmjs.com/package/@inscada/mcp-server",
+  "support": "https://github.com/inscada/mcp-server/issues",
+  "icon": "icon.png",
+  "keywords": ["scada", "industrial", "iot", "automation", "inscada", "plc", "hmi"],
+  "license": "MIT",
+  "privacy_policies": ["https://inscada.com/privacy-policy"],
+  "server": {
+    "type": "node",
+    "entry_point": "index.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/index.mjs"],
+      "env": {
+        "INSCADA_API_URL": "${user_config.inscada_url}",
+        "INSCADA_USERNAME": "${user_config.inscada_username}",
+        "INSCADA_PASSWORD": "${user_config.inscada_password}"
+      }
+    }
+  },
+  "tools_generated": true,
+  "user_config": {
+    "inscada_url": {
+      "type": "string",
+      "title": "inSCADA URL",
+      "description": "inSCADA API base URL (e.g. https://your-server:8082)",
+      "required": true,
+      "default": "http://localhost:8081"
+    },
+    "inscada_username": {
+      "type": "string",
+      "title": "Username",
+      "description": "inSCADA login username",
+      "required": true
+    },
+    "inscada_password": {
+      "type": "string",
+      "title": "Password",
+      "description": "inSCADA login password",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

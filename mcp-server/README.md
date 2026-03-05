@@ -2,63 +2,45 @@
 
 inSCADA MCP Server — SCADA operations via [Model Context Protocol](https://modelcontextprotocol.io).
 
-Connect Claude Desktop, VS Code Copilot, Cursor, or any MCP client to your inSCADA system. 36 tools for live values, alarms, scripts, historical data, charts, Excel export, and more.
+Connect Claude Desktop, VS Code Copilot, Cursor, or any MCP client to your inSCADA system. 37 tools for live values, alarms, scripts, historical data, charts, Excel export, and more.
 
 > **Note:** This MCP server is designed for **inSCADA JDK11** edition.
 
 ---
 
-inSCADA MCP Server — [Model Context Protocol](https://modelcontextprotocol.io) üzerinden SCADA operasyonları.
+inSCADA MCP Server — [Model Context Protocol](https://modelcontextprotocol.io) uzerinden SCADA operasyonlari.
 
-Claude Desktop, VS Code Copilot, Cursor veya herhangi bir MCP istemcisini inSCADA sisteminize bağlayın. Canlı değer, alarm, script, tarihsel veri, grafik, Excel dışa aktarma ve daha fazlası için 36 araç.
+Claude Desktop, VS Code Copilot, Cursor veya herhangi bir MCP istemcisini inSCADA sisteminize baglayin. Canli deger, alarm, script, tarihsel veri, grafik, Excel disa aktarma ve daha fazlasi icin 37 arac.
 
-> **Not:** Bu MCP sunucusu **inSCADA JDK11** sürümü için tasarlanmıştır.
+> **Not:** Bu MCP sunucusu **inSCADA JDK11** surumu icin tasarlanmistir.
 
-## What is this? / Bu ne işe yarar?
+## What is this? / Bu ne ise yarar?
 
 This MCP server lets AI assistants (like Claude) directly interact with your inSCADA system using natural language.
 
-Bu MCP sunucusu, AI asistanların (Claude gibi) doğal dil kullanarak inSCADA sisteminizle etkileşime girmesini sağlar.
+Bu MCP sunucusu, AI asistanlarin (Claude gibi) dogal dil kullanarak inSCADA sisteminizle etkilesime girmesini saglar.
 
-### 🏭 Application Development / Uygulama Geliştirme
+### Application Development / Uygulama Gelistirme
 
-Build and maintain SCADA applications through natural language. Write and debug scripts, design animations and faceplates, create custom menus, and explore your project structure — all by describing what you need.
+Build and maintain SCADA applications through natural language. Write and debug scripts, design animations and faceplates, create custom menus, and explore your project structure.
 
-Doğal dil ile SCADA uygulamaları geliştirin. Script yazın ve hata ayıklayın, animasyon ve faceplate tasarlayın, özel menüler oluşturun, proje yapınızı keşfedin — ihtiyacınızı tarif ederek.
+Dogal dil ile SCADA uygulamalari gelistirin. Script yazin ve hata ayiklayin, animasyon ve faceplate tasarlayin, ozel menuler olusturun, proje yapinizi kesfedin.
 
-- *"Write a script that calculates daily energy consumption"*
-- *"Find all scripts that reference AN01_Active_Power"*
-- *"Create a navigation menu for the operator dashboard"*
-
-### 📊 Data Analytics / Veri Analitiği
+### Data Analytics / Veri Analitigi
 
 Analyze historical data, generate trend charts, create forecasts, and export reports — without writing queries or configuring dashboards.
 
-Tarihsel verileri analiz edin, trend grafikleri oluşturun, tahminler üretin ve raporları dışa aktarın — sorgu yazmadan veya dashboard yapılandırmadan.
+Tarihsel verileri analiz edin, trend grafikleri olusturun, tahminler uretin ve raporlari disa aktarin — sorgu yazmadan veya dashboard yapilandirmadan.
 
-- *"Show me the temperature trend for the last 24 hours"*
-- *"Forecast the next 6 hours of active power"*
-- *"Export the daily production summary to Excel"*
+### Operations & Monitoring / Operasyon ve Izleme
 
-### 🔍 Operations & Monitoring / Operasyon ve İzleme
+Monitor your SCADA system in real time. Check live values, view active alarms, inspect connection status, and track project health.
 
-Monitor your SCADA system in real time. Check live values, view active alarms, inspect connection status, and track project health — just by asking.
+SCADA sisteminizi gercek zamanli izleyin. Canli degerleri kontrol edin, aktif alarmlari goruntuleyin, baglanti durumunu inceleyin ve proje sagligini takip edin.
 
-SCADA sisteminizi gerçek zamanlı izleyin. Canlı değerleri kontrol edin, aktif alarmları görüntüleyin, bağlantı durumunu inceleyin ve proje sağlığını takip edin — sadece sorarak.
+## Quick Start / Hizli Baslangic
 
-- *"What is the current value of AN01_Active_Power?"*
-- *"Are there any active alarms?"*
-- *"What scripts are running?"*
-
----
-
-The AI understands your intent, calls the right tools, and returns the results — all through a chat interface.
-
-AI niyetinizi anlar, doğru araçları çağırır ve sonuçları döner — hepsi bir sohbet arayüzünden.
-
-## Quick Start / Hızlı Başlangıç
-
-Add to your Claude Desktop config / Claude Desktop yapılandırmanıza ekleyin:
+Add to your Claude Desktop config / Claude Desktop yapilandirmaniza ekleyin:
 
 **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 **Mac:** `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -79,108 +61,221 @@ Add to your Claude Desktop config / Claude Desktop yapılandırmanıza ekleyin:
 }
 ```
 
-Restart Claude Desktop. That's it! / Claude Desktop'ı yeniden başlatın. Bu kadar!
+Restart Claude Desktop. That's it! / Claude Desktop'i yeniden baslatin. Bu kadar!
 
 ## Requirements / Gereksinimler
 
 - [Node.js](https://nodejs.org) 18+
-- A running inSCADA instance / Çalışan bir inSCADA sunucusu
+- A running inSCADA instance / Calisan bir inSCADA sunucusu
 
-## Environment Variables / Ortam Değişkenleri
+## Environment Variables / Ortam Degiskenleri
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `INSCADA_API_URL` | No | inSCADA API base URL (default: `http://localhost:8081`) |
-| `INSCADA_USERNAME` | Yes | inSCADA login username / Kullanıcı adı |
-| `INSCADA_PASSWORD` | Yes | inSCADA login password / Şifre |
+| `INSCADA_USERNAME` | Yes | inSCADA login username / Kullanici adi |
+| `INSCADA_PASSWORD` | Yes | inSCADA login password / Sifre |
 
-## Tools (36) / Araçlar (36)
+## Usage Examples / Kullanim Ornekleri
+
+### Example 1: Monitor Live Values / Canli Degerleri Izleme
+
+**User prompt:**
+> "What is the current value of AN01_Active_Power?"
+
+**What happens:**
+1. Claude calls `list_projects` to find the project
+2. Claude calls `inscada_get_live_value` with the variable name
+3. Returns the current value, timestamp, and variable details
+
+**Expected result:**
+> AN01_Active_Power = 142.5 kW (last updated: 2026-03-05 14:32:10)
+
+---
+
+### Example 2: Analyze Historical Data / Tarihsel Veri Analizi
+
+**User prompt:**
+> "Show me the temperature trend for the last 24 hours and forecast the next 6 hours"
+
+**What happens:**
+1. Claude calls `inscada_logged_values` to fetch 24h of historical data
+2. Analyzes the data pattern (min, max, avg, trend direction)
+3. Generates forecast values based on the pattern
+4. Calls `chart_forecast` to render the combined chart
+
+**Expected result:**
+A chart showing the historical temperature as a solid line and the 6-hour forecast as a dashed line with diamond markers.
+
+---
+
+### Example 3: Write a SCADA Script / SCADA Scripti Yazma
+
+**User prompt:**
+> "Write a script that checks if the boiler temperature exceeds 90 degrees and sends an email alert"
+
+**What happens:**
+1. Claude calls `inscada_guide` to load script writing rules (Nashorn ES5)
+2. Generates a script following inSCADA conventions:
+   ```javascript
+   function main() {
+     var temp = ins.getVariableValue("Boiler_Temperature");
+     if (temp.value > 90) {
+       ins.sendMail(["operator"], "High Temperature Alert",
+         "Boiler temperature is " + temp.value + " C");
+       ins.writeLog("WARN", "BoilerCheck", "Temperature exceeded 90C: " + temp.value);
+     }
+   }
+   main();
+   ```
+3. Calls `update_script` to save the code (requires user confirmation)
+
+**Expected result:**
+Script is saved and ready to be scheduled. User confirms the write operation through the confirmation dialog.
+
+---
+
+### Example 4: Create a Dashboard Menu / Dashboard Menusu Olusturma
+
+**User prompt:**
+> "Create a gauge dashboard for AN01_Active_Power with a line chart"
+
+**What happens:**
+1. Claude calls `list_projects` to find the project ID
+2. Calls `create_custom_menu` with the `gauge_and_chart` template, variable name, and project ID
+3. A custom menu page is created in inSCADA with a live gauge and historical chart
+
+**Expected result:**
+A new menu item appears in inSCADA with a real-time gauge (updating every 2 seconds) and a time-series chart showing the last hour of data.
+
+---
+
+### Example 5: Export Data to Excel / Veriyi Excel'e Aktarma
+
+**User prompt:**
+> "Export all project scripts to an Excel file"
+
+**What happens:**
+1. Claude calls `list_projects` to get all projects
+2. Calls `list_scripts` for each project
+3. Calls `export_excel` with the collected data organized in sheets
+
+**Expected result:**
+An Excel file with project names as sheets, each containing script names, descriptions, schedule types, and status.
+
+## Tools (37) / Araclar (37)
 
 ### Space Management
 
-| Tool | Description |
-|------|-------------|
-| `set_space` | Switch active space / Aktif space değiştirme |
+| Tool | Type | Description |
+|------|------|-------------|
+| `set_space` | Read | Switch active space / Aktif space degistirme |
 
 ### Data / Veri
 
-| Tool | Description |
-|------|-------------|
-| `list_spaces` | List spaces / Space listesi |
-| `list_projects` | List projects / Proje listesi |
-| `list_variables` | List variables (tags) / Değişken listesi |
-| `list_scripts` | List scripts / Script listesi |
-| `get_script` | Get script code & details / Script kodu ve detayları |
-| `update_script` | Update script code / Script güncelleme |
-| `list_connections` | List connections / Bağlantı listesi |
-| `search_in_scripts` | Search text in scripts / Scriptlerde metin arama |
+| Tool | Type | Description |
+|------|------|-------------|
+| `list_spaces` | Read | List spaces / Space listesi |
+| `list_projects` | Read | List projects / Proje listesi |
+| `list_variables` | Read | List variables (tags) / Degisken listesi |
+| `list_scripts` | Read | List scripts / Script listesi |
+| `get_script` | Read | Get script code & details / Script kodu ve detaylari |
+| `update_script` | Write | Update script code / Script guncelleme |
+| `list_connections` | Read | List connections / Baglanti listesi |
+| `search_in_scripts` | Read | Search text in scripts / Scriptlerde metin arama |
 
 ### Animation / Animasyon
 
-| Tool | Description |
-|------|-------------|
-| `list_animations` | List animations / Animasyon listesi |
-| `get_animation` | Get animation details / Animasyon detayları |
+| Tool | Type | Description |
+|------|------|-------------|
+| `list_animations` | Read | List animations / Animasyon listesi |
+| `get_animation` | Read | Get animation details / Animasyon detaylari |
 
 ### SCADA (REST API)
 
-| Tool | Description |
-|------|-------------|
-| `inscada_get_live_value` | Read live value / Canlı değer okuma |
-| `inscada_get_live_values` | Read multiple live values / Çoklu canlı değer |
-| `inscada_set_value` | Write value to variable / Değer yazma |
-| `inscada_get_fired_alarms` | Get active alarms / Aktif alarmlar |
-| `inscada_connection_status` | Connection status / Bağlantı durumu |
-| `inscada_project_status` | Project status / Proje durumu |
-| `inscada_run_script` | Execute script / Script çalıştırma |
-| `inscada_script_status` | Script status / Script durumu |
-| `inscada_logged_values` | Historical log data / Tarihsel log verileri |
-| `inscada_logged_stats` | Statistics (min, max, avg, sum) / İstatistikler |
+| Tool | Type | Description |
+|------|------|-------------|
+| `inscada_get_live_value` | Read | Read live value / Canli deger okuma |
+| `inscada_get_live_values` | Read | Read multiple live values / Coklu canli deger |
+| `inscada_set_value` | Write | Write value to variable / Deger yazma |
+| `inscada_get_fired_alarms` | Read | Get active alarms / Aktif alarmlar |
+| `inscada_connection_status` | Read | Connection status / Baglanti durumu |
+| `inscada_project_status` | Read | Project status / Proje durumu |
+| `inscada_run_script` | Write | Execute script / Script calistirma |
+| `inscada_script_status` | Read | Script status / Script durumu |
+| `inscada_logged_values` | Read | Historical log data / Tarihsel log verileri |
+| `inscada_logged_stats` | Read | Statistics (min, max, avg, sum) / Istatistikler |
 
 ### Generic API
 
-| Tool | Description |
-|------|-------------|
-| `inscada_api_endpoints` | List available API endpoints / API endpoint listesi |
-| `inscada_api_schema` | Get endpoint schema / Endpoint şeması |
-| `inscada_api` | Call any API endpoint / Herhangi bir API çağrısı |
+| Tool | Type | Description |
+|------|------|-------------|
+| `inscada_api_endpoints` | Read | List available API endpoints / API endpoint listesi |
+| `inscada_api_schema` | Read | Get endpoint schema / Endpoint semasi |
+| `inscada_api` | Write | Call any API endpoint / Herhangi bir API cagrisi |
 
 ### Charts / Grafikler
 
-| Tool | Description |
-|------|-------------|
-| `chart_line` | Time series line chart / Zaman serisi çizgi grafik |
-| `chart_bar` | Bar chart / Çubuk grafik |
-| `chart_gauge` | Live gauge / Canlı gösterge |
-| `chart_multi` | Multi-series chart / Çoklu seri grafik |
-| `chart_forecast` | Forecast chart / Tahmin grafiği |
+| Tool | Type | Description |
+|------|------|-------------|
+| `chart_line` | Read | Time series line chart / Zaman serisi cizgi grafik |
+| `chart_bar` | Read | Bar chart / Cubuk grafik |
+| `chart_gauge` | Read | Live gauge / Canli gosterge |
+| `chart_multi` | Read | Multi-series chart / Coklu seri grafik |
+| `chart_forecast` | Read | Forecast chart / Tahmin grafigi |
 
-### Custom Menus / Menüler
+### Custom Menus / Menuler
 
-| Tool | Description |
-|------|-------------|
-| `list_custom_menus` | List menus / Menü listesi |
-| `get_custom_menu` | Get menu details / Menü detayları |
-| `get_custom_menu_by_name` | Find menu by name / İsme göre menü arama |
-| `create_custom_menu` | Create menu / Menü oluşturma |
-| `update_custom_menu` | Update menu / Menü güncelleme |
-| `delete_custom_menu` | Delete menu / Menü silme |
+| Tool | Type | Description |
+|------|------|-------------|
+| `list_custom_menus` | Read | List menus / Menu listesi |
+| `get_custom_menu` | Read | Get menu details / Menu detaylari |
+| `get_custom_menu_by_name` | Read | Find menu by name / Isme gore menu arama |
+| `create_custom_menu` | Write | Create menu / Menu olusturma |
+| `update_custom_menu` | Write | Update menu / Menu guncelleme |
+| `delete_custom_menu` | Write | Delete menu / Menu silme |
 
-### Export / Dışa Aktarma
+### Export / Disa Aktarma
 
-| Tool | Description |
-|------|-------------|
-| `export_excel` | Export to Excel (.xlsx) / Excel dışa aktarma |
+| Tool | Type | Description |
+|------|------|-------------|
+| `export_excel` | Write | Export to Excel (.xlsx) / Excel disa aktarma |
 
-## Security / Güvenlik
+### Guide / Kilavuz
 
-Dangerous tools are blocked in MCP and require confirmation through the inSCADA AI Assistant app:
+| Tool | Type | Description |
+|------|------|-------------|
+| `inscada_guide` | Read | Load usage rules and best practices / Kullanim kurallari ve en iyi pratikler |
 
-Tehlikeli araçlar MCP'de engellenmiştir ve sadece inSCADA AI Asistan uygulamasından onay ile çalıştırılabilir:
+## Security / Guvenlik
 
-- `inscada_set_value` — Writes to real equipment / Gerçek ekipmana yazma
-- `inscada_run_script` — Executes server-side script / Sunucu tarafında script çalıştırma
-- `update_script` — Modifies script code / Script kodunu değiştirme
+All tools have MCP safety annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`).
+
+Destructive tools require user confirmation:
+
+- `inscada_set_value` — Writes to real equipment / Gercek ekipmana yazma
+- `inscada_run_script` — Executes server-side script / Sunucu tarafinda script calistirma
+- `update_script` — Modifies script code / Script kodunu degistirme
+- `inscada_api` (POST/PUT/DELETE) — Modifies data via generic API / Genel API ile veri degistirme
+
+## Privacy Policy
+
+### Data Collection
+This MCP server acts as a bridge between AI assistants and your inSCADA system. It does **not** collect, store, or transmit any data to third parties.
+
+### Data Flow
+- All communication is between the MCP client (e.g. Claude Desktop) and your inSCADA instance
+- Credentials (username/password) are stored locally in your MCP client configuration
+- No data is sent to inSCADA (the company) or any external service
+- Optional anonymous telemetry (tool call counts, error rates) can be sent to the inSCADA telemetry server for improving the product. No personal data or SCADA values are included.
+
+### Data Storage
+- No user data is stored by this server
+- Session tokens are kept in memory only and discarded on exit
+- Downloaded Excel files are stored in the system temp directory and are not automatically cleaned up
+
+### Contact
+For privacy questions: habib.kara@inscada.com
 
 ## License / Lisans
 
