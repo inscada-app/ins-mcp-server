@@ -1691,7 +1691,7 @@ const INSCADA_GUIDE = `# inSCADA MCP Server — Rules & Best Practices
   Color: type:"Color", expressionType:"SWITCH" — "#hex", "c1/c2"(blink), "c1/c2/gradient/horizontal"
   Visibility: type:"Visibility", expressionType:"EXPRESSION", props:'{"inverse":false}'
   Opacity: type:"Opacity", expressionType:"EXPRESSION", props:'{"min":0,"max":100}'
-  Bar: type:"Bar", expressionType:"EXPRESSION"|"TAG", props:'{"min":0,"max":100,"orientation":"Bottom","fillColor":"#04B3FF","duration":1,"opacity":1}'
+  Bar: type:"Bar", expressionType:"EXPRESSION"|"TAG", props:'{"min":0,"max":100,"orientation":"Bottom","fillColor":"#04B3FF","duration":1,"opacity":1}'. SVG rule: place a background rect, then an identical rect (same x/y/width/height) with the domId on top. Bar element fills this second rect. Do NOT add extra size manipulation.
   Rotate: type:"Rotate", expressionType:"EXPRESSION", props:'{"min":0,"max":360,"offset":"mc"}'
   Move: type:"Move", expressionType:"EXPRESSION" — value={orientation:"H"|"V",minVal,maxVal,minPos,maxPos,value}
   Scale: type:"Scale", expressionType:"EXPRESSION", props:'{"min":0,"max":100,"horizontal":true,"vertical":true}'
